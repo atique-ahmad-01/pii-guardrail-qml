@@ -1,0 +1,58 @@
+[project]
+name = "piiguard"
+version = "0.1.0"
+description = "Two-stage PII guardrail (gate + masker): quantum-vs-classical gate benchmark and stress-tested small-LM maskers."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "torch>=2.3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "numpy<2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "transformers>=4.44; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "transformers>=4.44,<4.50; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "datasets>=2.20",
+    "peft>=0.12",
+    "accelerate>=0.33",
+    "sentence-transformers>=3.0",
+    "scikit-learn>=1.4",
+    "seqeval>=1.2.2",
+    "pennylane>=0.38",
+    "pennylane-lightning>=0.38",
+    "pandas>=2.1",
+    "pyarrow>=15; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "pyarrow>=15,<19; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+    "pyyaml>=6.0",
+    "sentencepiece>=0.2.0,<=0.2.0",
+    "tiktoken",
+    "protobuf",
+]
+
+[project.optional-dependencies]
+quantum-hw = ["qiskit>=1.1", "qiskit-aer>=0.14", "qiskit-ibm-runtime>=0.25", "pennylane-qiskit>=0.38"]
+demo = ["gradio>=4.40"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/piiguard"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["slow: needs network or model downloads (deselect with -m 'not slow')"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "N"]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.5"]

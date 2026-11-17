@@ -18,6 +18,7 @@ from typing import Any
 import pandas as pd
 import torch
 
+from piiguard.data.eval_sets import load_sets
 from piiguard.data.load import frame_to_docs
 from piiguard.eval.metrics import counts_frame, summarize_frame
 from piiguard.masker.summary import summarize
@@ -32,32 +33,12 @@ from piiguard.utils import (
 
 log = get_logger("run_masker")
 MODELS = ["deberta", "qwen_lora", "smollm_lora", "qwen_zeroshot"]
-SET_FILES = {
-    "clean": "test.parquet",
-    "cross_de": "cross_de.parquet",
-    "cross_fr": "cross_fr.parquet",
-    "cross_it": "cross_it.parquet",
-}
 
 
-def load_sets(cfg: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Evaluation sets as ``{name: {"docs", "prompts", "eval_labels"}}`` (optionally truncated)."""
-    d = Path(cfg["paths"]["data_dir"])
-    cap = cfg["masker"].get("eval_max_docs")
-    sets = {}
-    for name in cfg["masker"]["eval_sets"]:
-        path = d / SET_FILES.get(name, f"stress/{name}.parquet")
-        df = pd.read_parquet(path)
-        if cap:
-            df = df.head(cap)
-        docs = frame_to_docs(df)
-        el = (
-            [json.loads(x) if x else None for x in df["eval_labels"]]
-            if "eval_labels" in df
-            else [None] * len(df)
-        )
-        sets[name] = {"docs": docs, "prompts": df["prompt"].tolist(), "eval_labels": el}
-    return sets
+def load_cfg_sets(cfg: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Evaluation sets named in ``cfg['masker']['eval_sets']`` (optionally truncated)."""
+    m = cfg["masker"]
+    return load_sets(cfg["paths"]["data_dir"], m["eval_sets"], m.get("eval_max_docs"))
 
 
 def evaluate(
@@ -217,7 +198,7 @@ def main() -> None:
     cfg = load_config(args.config)
     out = ensure_dir(Path(cfg["paths"]["results_dir"]) / "masker")
     if not args.summary_only:
-        sets = load_sets(cfg)
+        sets = load_cfg_sets(cfg)
         log.info("eval sets: %s", {k: len(v["docs"]) for k, v in sets.items()})
         for model in MODELS if args.model == "all" else [args.model]:
             seeds = [0] if model == "qwen_zeroshot" else (args.seeds or cfg["masker"]["seeds"])

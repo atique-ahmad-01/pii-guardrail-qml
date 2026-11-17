@@ -59,6 +59,16 @@ masker:
   lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]}
   sft: {epochs: 1, batch_size: 4, grad_accum: 1, lr: 2.0e-4, max_length: 768, max_steps: 30}
   inference: {max_new_tokens: 256, batch_size: 10}
+pipeline:
+  seed: 0
+  ckpt: checkpoints/deberta_seed0/best
+  eval_sets: [clean, obf_all]
+  eval_n: 20
+  latency_docs: 5
+  gate_train_n: 300
+  val_n: 200
+  target_recall: 0.99     # each gate's threshold keeps >= 99% of validation PII sentences
+  minilm_ft: {train_n: 300, epochs: 1, batch_size: 32, lr: 2.0e-5}
 eval:
   bootstrap_resamples: 200
   ci: 0.95

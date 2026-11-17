@@ -3,7 +3,7 @@ CFG := configs/$(PROFILE).yaml
 UV ?= $(shell command -v uv 2>/dev/null || echo .tools/uv)
 RUN := $(UV) run python
 
-.PHONY: setup test lint fmt data stress gate masker pipeline report smoke reproduce clean
+.PHONY: setup test lint fmt data stress gate masker pipeline eval report smoke reproduce clean
 
 setup:
 	$(UV) sync --all-extras
@@ -34,6 +34,9 @@ gate:
 masker:
 	$(RUN) scripts/run_masker.py --config $(CFG)
 
+eval:
+	$(RUN) scripts/run_eval.py --config $(CFG)
+
 pipeline:
 	$(RUN) scripts/run_pipeline.py --config $(CFG)
 
@@ -42,11 +45,11 @@ report:
 
 # Everything on the tiny profile (<15 min on a laptop).
 smoke:
-	$(MAKE) PROFILE=smoke data stress gate masker pipeline report
+	$(MAKE) PROFILE=smoke data stress gate masker pipeline eval report
 
 # Full data -> report. Long: run on a CUDA GPU.
 reproduce:
-	$(MAKE) PROFILE=full data stress gate masker pipeline report
+	$(MAKE) PROFILE=full data stress gate masker pipeline eval report
 
 clean:
 	rm -rf .pytest_cache .ruff_cache build dist

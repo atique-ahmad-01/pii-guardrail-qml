@@ -55,17 +55,16 @@ def predict(
     return np.concatenate(out)
 
 
-def finetune_and_eval(
+def train_minilm(
     model_name: str,
     train_texts: list[str],
     train_y: np.ndarray,
-    eval_sets: dict[str, tuple[list[str], np.ndarray]],
     epochs: int,
     batch_size: int,
     lr: float,
     seed: int,
-) -> dict[str, Any]:
-    """Fine-tune on ``train_texts`` and score every set in ``eval_sets``; also time inference."""
+) -> tuple[MiniLMClassifier, Any, str, float]:
+    """Fine-tune MiniLM with a linear head: ``(model, tokenizer, device, train_seconds)``."""
     set_seed(seed)
     device = get_device()
     tok = AutoTokenizer.from_pretrained(model_name)
@@ -89,7 +88,23 @@ def finetune_and_eval(
             opt.step()
     if device == "cuda":
         torch.cuda.synchronize()
-    train_s = time.perf_counter() - t0
+    return model, tok, device, time.perf_counter() - t0
+
+
+def finetune_and_eval(
+    model_name: str,
+    train_texts: list[str],
+    train_y: np.ndarray,
+    eval_sets: dict[str, tuple[list[str], np.ndarray]],
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    seed: int,
+) -> dict[str, Any]:
+    """Fine-tune on ``train_texts`` and score every set in ``eval_sets``; also time inference."""
+    model, tok, device, train_s = train_minilm(
+        model_name, train_texts, train_y, epochs, batch_size, lr, seed
+    )
     results: dict[str, Any] = {}
     for name, (texts, y) in eval_sets.items():
         results[name] = gate_metrics(y, predict(model, tok, texts, device))

@@ -21,7 +21,7 @@ dependencies = [
     "pandas>=2.1",
     "pyarrow>=15; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "pyarrow>=15,<19; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-    "numpy>=1.26",
+    "numpy>=2.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "matplotlib>=3.8",
     "pyyaml>=6.0",
     "sentencepiece>=0.2.0,<=0.2.0",

@@ -28,18 +28,23 @@ stress:
   n_context_only: 50
 gate:
   embed_model: sentence-transformers/all-MiniLM-L6-v2
+  embed_batch_size: 256
   n_features: 8
-  n_train: 2000
-  classical_full_size: true      # also report classical models on the whole gate train set
+  n_train: 2000              # gate training size for the quantum and small classical models
+  classical_full_size: true  # also train the classical models on the whole gate train pool
+  eval_n: 2000               # one fixed balanced test subset scored by every model
+  noisy_eval_n: 500          # noisy simulation is ~100x slower, so it uses a subset of eval_n
   seeds_classical: [0, 1, 2, 3, 4]
   seeds_kernel: [0, 1, 2]
-  kernel_train_cap: 500
-  vqc: {n_qubits: 8, n_layers: 3, epochs: 30, batch_size: 32, lr: 0.05}
+  seeds_finetune: [0, 1, 2]
+  mlp: {hidden: 7, max_iter: 300}   # hidden=7 -> 71 params (VQC has 74)
+  vqc: {n_qubits: 8, n_layers: 3, epochs: 30, batch_size: 32, lr: 0.05, init_std: 0.5}
+  kernel: {train_cap: 500, feature_maps: [angle, iqp], c_grid: [0.1, 1.0, 10.0], val_n: 500}
   shots: 1024
   noise_probs: [0.001, 0.01]
   hardware: {enabled: false, max_test_sentences: 100}   # needs explicit user confirmation
-  barren_plateau: {qubits: [2, 4, 6, 8], n_samples: 200}
-  finetune: {epochs: 3, batch_size: 32, lr: 2.0e-5}
+  barren_plateau: {qubits: [2, 4, 6, 8], n_layers: 3, n_samples: 200}
+  finetune: {epochs: 3, batch_size: 32, lr: 2.0e-5, full_size: true}
 masker:
   seeds: [0, 1, 2]
   deberta: {model: microsoft/deberta-v3-small, epochs: 5, batch_size: 16, lr: 5.0e-5, max_length: 512, early_stopping_patience: 2}

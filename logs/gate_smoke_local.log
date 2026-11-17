@@ -1,0 +1,47 @@
+21:38:44 INFO gate.features: embedding {'train': 2780, 'val': 938, 'test': 896} sentences on mps
+21:40:47 INFO gate.features: cached features -> /Users/ebricks/Desktop/pii-guardrail-qml/data/cache/gate_features_smoke.npz (PCA keeps 27.3% variance)
+21:40:47 INFO run_gate: features: PCA keeps 27.3% of embedding variance
+21:40:47 INFO run_gate: stage features done in 0.4s
+21:40:47 INFO run_gate: logreg classical n200 seed=0 auc=0.936
+21:40:48 INFO run_gate: mlp classical n200 seed=0 auc=0.863
+21:40:48 INFO run_gate: logreg classical full seed=0 auc=0.942
+21:40:50 INFO run_gate: mlp classical full seed=0 auc=0.937
+21:40:50 INFO run_gate: logreg classical n200 seed=1 auc=0.941
+21:40:50 INFO run_gate: mlp classical n200 seed=1 auc=0.921
+21:40:50 INFO run_gate: logreg classical full seed=1 auc=0.942
+21:40:52 INFO run_gate: mlp classical full seed=1 auc=0.940
+21:40:52 INFO run_gate: stage classical done in 4.4s
+21:40:54 INFO run_gate: vqc exact n200 seed=0 auc=0.916
+21:40:56 INFO run_gate: vqc shots1024 n200 seed=0 auc=0.920
+21:41:13 INFO run_gate: vqc noisy_p0.001 n200 seed=0 auc=1.000
+21:41:30 INFO run_gate: vqc noisy_p0.01 n200 seed=0 auc=1.000
+21:41:33 INFO run_gate: vqc exact n200 seed=1 auc=0.904
+21:41:34 INFO run_gate: vqc shots1024 n200 seed=1 auc=0.904
+21:41:52 INFO run_gate: vqc noisy_p0.001 n200 seed=1 auc=0.987
+21:42:09 INFO run_gate: vqc noisy_p0.01 n200 seed=1 auc=0.987
+21:42:09 INFO run_gate: stage vqc done in 77.3s
+21:42:09 INFO run_gate: kernel[angle] seed 0: train cap 100 -> using 100
+21:42:09 INFO run_gate: qkernel_angle exact n100 seed=0 auc=0.896
+21:42:10 INFO run_gate: qkernel_angle shots1024 n100 seed=0 auc=0.938
+21:42:10 INFO run_gate: kernel[iqp] seed 0: train cap 100 -> using 100
+21:42:11 INFO run_gate: qkernel_iqp exact n100 seed=0 auc=0.757
+21:42:13 INFO run_gate: qkernel_iqp shots1024 n100 seed=0 auc=0.730
+21:42:13 INFO run_gate: stage kernel done in 4.6s
+Traceback (most recent call last):
+  File "/Users/ebricks/Desktop/pii-guardrail-qml/scripts/run_gate.py", line 327, in <module>
+    main()
+  File "/Users/ebricks/Desktop/pii-guardrail-qml/scripts/run_gate.py", line 322, in main
+    STAGES[name](c)
+  File "/Users/ebricks/Desktop/pii-guardrail-qml/scripts/run_gate.py", line 243, in stage_finetune
+    r = finetune_and_eval(
+        ^^^^^^^^^^^^^^^^^^
+  File "/Users/ebricks/Desktop/pii-guardrail-qml/src/piiguard/gate/finetune.py", line 78, in finetune_and_eval
+    logit = model(**enc)
+            ^^^^^^^^^^^^
+  File "/Users/ebricks/Desktop/pii-guardrail-qml/.venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ebricks/Desktop/pii-guardrail-qml/.venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: MiniLMClassifier.forward() got an unexpected keyword argument 'token_type_ids'

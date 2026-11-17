@@ -7,6 +7,7 @@ Stages: features, classical, vqc, kernel, finetune, barren, summary, all
 from __future__ import annotations
 
 import argparse
+import json
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -297,6 +298,15 @@ def stage_summary(c: Ctx) -> None:
     perf, barren = summarize(c.out)
     perf.to_csv(c.out / "summary.csv", index=False)
     barren.to_csv(c.out / "summary_barren.csv", index=False)
+    keys = (
+        "sizes",
+        "model",
+        "n_features",
+        "pca_explained_variance",
+        "pca_explained_variance_total",
+        "device",
+    )
+    (c.out / "summary_features.json").write_text(json.dumps({k: c.f[k] for k in keys}, indent=2))
     log.info("wrote %s (%d rows) and summary_barren.csv", c.out / "summary.csv", len(perf))
 
 

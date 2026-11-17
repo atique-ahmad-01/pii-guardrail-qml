@@ -77,9 +77,14 @@ class VQC:
     """8-qubit (configurable) variational classifier trained with Adam on binary cross-entropy."""
 
     def __init__(
-        self, n_qubits: int = 8, n_layers: int = 3, init_std: float = 0.5, seed: int = 0
+        self,
+        n_qubits: int = 8,
+        n_layers: int = 3,
+        init_std: float = 0.5,
+        seed: int = 0,
+        reupload: bool = False,
     ) -> None:
-        self.n, self.L = n_qubits, n_layers
+        self.n, self.L, self.reupload = n_qubits, n_layers, reupload
         g = torch.Generator().manual_seed(seed)
         self.weights = (
             torch.randn(n_layers, n_qubits, 3, generator=g, dtype=torch.float64) * init_std
@@ -94,8 +99,13 @@ class VQC:
 
     # ------------------------------------------------------------------ circuit
     def _circuit(self, x: Any, w: Any) -> Any:
-        qml.AngleEmbedding(x, wires=range(self.n), rotation="X")
-        qml.StronglyEntanglingLayers(w, wires=range(self.n))
+        if self.reupload:  # data re-uploading: re-encode x before every trainable layer
+            for layer in range(self.L):
+                qml.AngleEmbedding(x, wires=range(self.n), rotation="X")
+                qml.StronglyEntanglingLayers(w[layer : layer + 1], wires=range(self.n))
+        else:
+            qml.AngleEmbedding(x, wires=range(self.n), rotation="X")
+            qml.StronglyEntanglingLayers(w, wires=range(self.n))
         return qml.expval(qml.PauliZ(0))
 
     @property
@@ -104,6 +114,8 @@ class VQC:
         return int(self.weights.numel() + 2)
 
     def _noisy_qnode(self, p: float) -> qml.QNode:
+        if self.reupload:
+            raise NotImplementedError("noise model is only implemented without re-uploading")
         if p not in self._noisy:
             dev = qml.device("default.mixed", wires=self.n)
             self._noisy[p] = qml.QNode(

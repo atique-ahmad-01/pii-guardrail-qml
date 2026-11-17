@@ -218,20 +218,193 @@ def gate_section(res: Path, fig_dir: Path) -> tuple[str, list[str]]:
             continue
         r = r.iloc[0]
         q = m.startswith(("vqc", "qkernel"))
-        ax.scatter(r.latency_ms_single_mean, r.roc_auc_mean, s=70, zorder=3,
-                   color=COLORS["qwen_lora"] if q else COLORS["deberta"],
-                   edgecolor=SURFACE, linewidth=2)
-        ax.annotate(label, (r.latency_ms_single_mean, r.roc_auc_mean), textcoords="offset points",
-                    xytext=off, ha=ha, fontsize=8.5, color=MUTED)
+        ax.scatter(
+            r.latency_ms_single_mean,
+            r.roc_auc_mean,
+            s=70,
+            zorder=3,
+            color=COLORS["qwen_lora"] if q else COLORS["deberta"],
+            edgecolor=SURFACE,
+            linewidth=2,
+        )
+        ax.annotate(
+            label,
+            (r.latency_ms_single_mean, r.roc_auc_mean),
+            textcoords="offset points",
+            xytext=off,
+            ha=ha,
+            fontsize=8.5,
+            color=MUTED,
+        )
     ax.set_xscale("log")
     ax.set_xlabel("Inference latency, ms per sentence (log)")
     ax.set_ylabel("ROC-AUC")
-    ax.set_title("Gate accuracy vs cost (orange = quantum simulation, blue = classical)",
-                 loc="left", fontsize=11)
+    ax.set_title(
+        "Gate accuracy vs cost (orange = quantum simulation, blue = classical)",
+        loc="left",
+        fontsize=11,
+    )
     fig.tight_layout()
     fig.savefig(fig_dir / "gate_auc_vs_latency.png", dpi=160, facecolor=SURFACE)
     plt.close(fig)
     out.append("\n![gate accuracy vs cost](figures/gate_auc_vs_latency.png)\n")
+    return "\n".join(out), bits
+
+
+# ---------------------------------------------------------------------------------- extras
+VARIANT_COLOR = {
+    "logreg": COLORS["deberta"],
+    "mlp": COLORS["smollm_lora"],
+    "vqc": COLORS["qwen_lora"],
+    "qkernel_angle": COLORS["qwen_zeroshot"],
+}
+VARIANT_NAME = {
+    "logreg": "Logistic regression",
+    "mlp": "MLP",
+    "vqc": "VQC",
+    "qkernel_angle": "Quantum kernel SVM",
+}
+
+
+def line_chart(d: pd.DataFrame, xlabel: str, title: str, path: Path, logx: bool) -> None:
+    """ROC-AUC vs x with a ±1 std band per variant and direct end labels."""
+    fig, ax = new_fig(8.6, 4.8)
+    ends: list[tuple[float, float, str]] = []
+    for v, name in VARIANT_NAME.items():
+        s = d[d.variant == v].sort_values("x")
+        if s.empty:
+            continue
+        sd = s.roc_auc_std.fillna(0)
+        ax.fill_between(
+            s.x, s.roc_auc_mean - sd, s.roc_auc_mean + sd, color=VARIANT_COLOR[v], alpha=0.15, lw=0
+        )
+        ax.plot(
+            s.x,
+            s.roc_auc_mean,
+            color=VARIANT_COLOR[v],
+            lw=2,
+            marker="o",
+            ms=6,
+            markeredgecolor=SURFACE,
+            markeredgewidth=2,
+            label=name,
+        )
+        ends.append((s.roc_auc_mean.iloc[-1], s.x.iloc[-1], name))
+    if logx:
+        ax.set_xscale("log")
+    # direct labels at the line ends, nudged apart so they never overlap
+    lo, hi = ax.get_ylim()
+    gap, prev = 0.05 * (hi - lo), -np.inf
+    for y, x, name in sorted(ends):
+        y_lab = max(y, prev + gap)
+        prev = y_lab
+        ax.annotate(
+            name,
+            (x, y),
+            xytext=(x * 1.04 if logx else x, y_lab),
+            textcoords="data",
+            fontsize=8.5,
+            color=MUTED,
+            va="center",
+            arrowprops={"arrowstyle": "-", "color": GRID, "lw": 0.8, "shrinkA": 0, "shrinkB": 3},
+        )
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("ROC-AUC (shared test subset)")
+    ax.set_title(title, loc="left", fontsize=11)
+    ax.legend(frameon=False, fontsize=9, loc="lower right")
+    ax.margins(x=0.18)
+    fig.tight_layout()
+    fig.savefig(path, dpi=160, facecolor=SURFACE)
+    plt.close(fig)
+
+
+def extras_section(res: Path, fig_dir: Path) -> tuple[str, list[str]]:
+    p = res / "gate_extras" / "summary.csv"
+    if not p.exists():
+        return (
+            "## Additional quantum scenarios\n\n_Not run (`results/gate_extras/` missing)._\n",
+            [],
+        )
+    d = pd.read_csv(p)
+    bits: list[str] = []
+    out = ["## Additional quantum scenarios (exact simulation)\n"]
+    out.append(
+        "Mean ± std over seeds on the shared balanced test subset; bands in the figures are ±1 std.\n"
+    )
+    ld = d[d.scenario == "low_data"]
+    if not ld.empty:
+        out.append("### Low-data regime\n")
+        piv = ld.assign(
+            v=ld.roc_auc_mean.map("{:.3f}".format)
+            + " ± "
+            + ld.roc_auc_std.fillna(0).map("{:.3f}".format)
+        ).pivot(index="x", columns="variant", values="v")
+        piv.insert(0, "train sentences", piv.index.astype(int))
+        out.append(md_table(piv.reset_index(drop=True).fillna("–")))
+        line_chart(
+            ld,
+            "Training sentences (log)",
+            "Learning curves on 8 features",
+            fig_dir / "low_data.png",
+            True,
+        )
+        out.append("![low data](figures/low_data.png)\n")
+        n0 = ld.x.min()
+        row = ld[ld.x == n0].set_index("variant").roc_auc_mean
+        bits.append(
+            "Low data (n="
+            + f"{int(n0)}"
+            + "): "
+            + ", ".join(f"{VARIANT_NAME[k]} {v:.3f}" for k, v in row.items() if k in VARIANT_NAME)
+            + " ROC-AUC."
+        )
+    ab = d[d.scenario == "ablation"]
+    if not ab.empty:
+        out.append("### VQC ablation: depth and data re-uploading\n")
+        t = ab.assign(
+            **{
+                "ROC-AUC": ab.roc_auc_mean.map("{:.3f}".format)
+                + " ± "
+                + ab.roc_auc_std.fillna(0).map("{:.3f}".format),
+                "recall@95%prec": ab.recall_at_95p_mean.map("{:.2f}".format),
+                "train s": ab.train_s_mean.map("{:.1f}".format),
+                "params": ab.params.map(lambda v: "–" if pd.isna(v) else f"{v:,.0f}"),
+            }
+        )
+        out.append(
+            md_table(t[["variant", "n_seeds", "ROC-AUC", "recall@95%prec", "train s", "params"]])
+        )
+        best = ab.loc[ab.roc_auc_mean.idxmax()]
+        bits.append(
+            f"VQC ablation: best variant `{best.variant}` with ROC-AUC {best.roc_auc_mean:.3f}."
+        )
+    fs = d[d.scenario == "feature_sweep"]
+    if not fs.empty:
+        out.append("### Feature-count sweep\n")
+        out.append(
+            "The VQC uses k qubits for k features; classical models can use more features. "
+            "`PCA variance kept` is the share of embedding variance retained.\n"
+        )
+        piv = fs.assign(v=fs.roc_auc_mean.map("{:.3f}".format)).pivot(
+            index="x", columns="variant", values="v"
+        )
+        kept = fs.groupby("x").pca_variance_kept.first().map("{:.1%}".format)
+        piv.insert(0, "PCA variance kept", kept)
+        piv.insert(0, "features k", piv.index.astype(int))
+        out.append(md_table(piv.reset_index(drop=True).fillna("–")))
+        line_chart(
+            fs,
+            "Number of PCA features / qubits k (log)",
+            "Gate accuracy vs feature count",
+            fig_dir / "feature_sweep.png",
+            True,
+        )
+        out.append("![feature sweep](figures/feature_sweep.png)\n")
+        lr = fs[fs.variant == "logreg"].sort_values("x")
+        if len(lr) > 1:
+            bits.append(
+                f"Feature sweep: logistic regression goes from ROC-AUC {lr.roc_auc_mean.iloc[0]:.3f} at k={int(lr.x.iloc[0])} to {lr.roc_auc_mean.iloc[-1]:.3f} at k={int(lr.x.iloc[-1])}."
+            )
     return "\n".join(out), bits
 
 
@@ -520,9 +693,10 @@ def main() -> None:
     rep = ensure_dir(Path(cfg["paths"]["reports_dir"]))
     fig_dir = ensure_dir(rep / "figures")
     gate, gbits = gate_section(res, fig_dir)
+    extra, xbits = extras_section(res, fig_dir)
     mask, mbits = masker_section(res, fig_dir)
     pipe, pbits = pipeline_section(res, fig_dir)
-    summary = "\n".join(f"- {b}" for b in [*gbits, *mbits, *pbits]) or "_No results found._"
+    summary = "\n".join(f"- {b}" for b in [*gbits, *xbits, *mbits, *pbits]) or "_No results found._"
     text = (
         "# Clean F1 hides leaks: stress-testing small-language-model PII maskers, "
         "with a quantum-vs-classical benchmark for the PII gate\n\n"
@@ -531,6 +705,8 @@ def main() -> None:
         + summary
         + "\n\n"
         + gate
+        + "\n"
+        + extra
         + "\n"
         + mask
         + "\n"

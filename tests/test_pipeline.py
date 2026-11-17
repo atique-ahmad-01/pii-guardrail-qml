@@ -50,3 +50,39 @@ def test_gate_stats():
     s = gate_sentence_stats(y, f)
     assert s["gate_recall"] == 0.5 and s["gate_precision"] == 0.5
     assert s["skipped_fraction"] == 0.5 and s["n_sentences"] == 4
+
+
+class _FakeGate:
+    thresholds = {"g": 0.5}
+
+    def score(self, name, texts):
+        return np.array([0.9 if "@" in t else 0.1 for t in texts])
+
+
+class _FakeMasker:
+    def __init__(self):
+        self.seen = []
+
+    def predict(self, texts):
+        self.seen += texts
+        return [[sp(t.index("@") - 3, t.index("@") + 8)] if "@" in t else [] for t in texts]
+
+
+def test_demo_masks_only_gated_sentences_and_skips_the_rest():
+    from piiguard.pipeline.demo import run_demo
+
+    text = "Hello there. Mail bob@site.com now. Bye."
+    m = _FakeMasker()
+    r = run_demo(text, _FakeGate(), m, use_gate=True)
+    assert m.seen == ["Mail bob@site.com now."]  # the other sentences never reach the masker
+    assert [f for _, _, f in r.sentences] == [False, True, False]
+    assert "bob@site.com" not in r.masked and r.masked.startswith("Hello there.")
+    m2 = _FakeMasker()
+    run_demo(text, _FakeGate(), m2, use_gate=False)
+    assert len(m2.seen) == 3  # no gate: masker sees every sentence
+
+
+def test_demo_handles_empty_text():
+    from piiguard.pipeline.demo import run_demo
+
+    assert run_demo("", _FakeGate(), _FakeMasker()).masked == ""

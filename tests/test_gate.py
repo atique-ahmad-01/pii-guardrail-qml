@@ -168,3 +168,14 @@ def test_kernel_svm_learns_toy_task():
     svm = QuantumKernelSVM("angle").fit(X, y, Xv, yv)
     m = gate_metrics(yv, svm.decision_function(Xv), threshold=0.0)
     assert m["roc_auc"] > 0.85 and svm.n_support > 0
+
+
+def test_reupload_vqc_has_same_parameter_count_and_valid_outputs():
+    X = np.random.default_rng(0).uniform(0, np.pi, size=(6, 4))
+    plain, re = VQC(4, 2, seed=0), VQC(4, 2, seed=0, reupload=True)
+    assert plain.n_params == re.n_params
+    p = re.predict_proba(X)
+    assert p.shape == (6,) and np.all((p > 0) & (p < 1))
+    assert not np.allclose(p, plain.predict_proba(X))  # a different circuit
+    with pytest.raises(NotImplementedError):
+        re.predict_proba(X, noisy_setting(0.01))

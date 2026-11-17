@@ -69,6 +69,10 @@ pipeline:
   val_n: 200
   target_recall: 0.99     # each gate's threshold keeps >= 99% of validation PII sentences
   minilm_ft: {train_n: 300, epochs: 1, batch_size: 32, lr: 2.0e-5}
+gate_extras:
+  low_data: {sizes: [20, 60], seeds: [0], kernel_max: 60}
+  ablation: {layers: [1, 2], seeds: [0]}
+  feature_sweep: {classical_k: [4, 8, 16], quantum_k: [4, 6], seeds: [0], pool: 300}
 eval:
   bootstrap_resamples: 200
   ci: 0.95

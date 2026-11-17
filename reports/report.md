@@ -7,6 +7,9 @@ _Generated from `/Users/ebricks/Desktop/pii-guardrail-qml/results` by `scripts/m
 - Gate: VQC (exact) ROC-AUC 0.933 vs logistic regression 0.934 (difference -0.001); VQC trains in 21.0 s vs 0.002 s.
 - Gate: fine-tuned MiniLM without the PCA bottleneck reaches ROC-AUC 0.995, against 0.935 for the 8-feature logistic regression (both trained on the full training pool).
 - Barren plateau: mean gradient variance falls 66x from 2 to 8 qubits.
+- Low data (n=50): Logistic regression 0.922, MLP 0.816, Quantum kernel SVM 0.923, VQC 0.908 ROC-AUC.
+- VQC ablation: best variant `layers5` with ROC-AUC 0.935.
+- Feature sweep: logistic regression goes from ROC-AUC 0.929 at k=4 to 0.963 at k=64.
 - DeBERTa-v3-small: clean entity F1 0.917, character leak 0.011; worst stress-set F1 is 0.695 on `obf_all` (leak 0.051).
 - Qwen2.5-0.5B + LoRA: clean entity F1 0.847, character leak 0.107; worst stress-set F1 is 0.762 on `cross_de` (leak 0.125).
 - Pipeline (clean): masker on whole documents leaks 0.0124; on sentences 0.1554.
@@ -56,9 +59,47 @@ Variance of ∂⟨Z₀⟩/∂θ over random initialisations (3 layers):
 
 ![gate accuracy vs cost](figures/gate_auc_vs_latency.png)
 
-## Additional quantum scenarios
+## Additional quantum scenarios (exact simulation)
 
-_Not run (`results/gate_extras/` missing)._
+Mean ± std over seeds on the shared balanced test subset; bands in the figures are ±1 std.
+
+### Low-data regime
+
+| train sentences | logreg | mlp | qkernel_angle | vqc |
+|---|---|---|---|---|
+| 50 | 0.922 ± 0.008 | 0.816 ± 0.127 | 0.923 ± 0.007 | 0.908 ± 0.009 |
+| 100 | 0.927 ± 0.006 | 0.842 ± 0.083 | 0.927 ± 0.004 | 0.915 ± 0.012 |
+| 250 | 0.931 ± 0.001 | 0.903 ± 0.027 | 0.932 ± 0.007 | 0.928 ± 0.005 |
+| 500 | 0.932 ± 0.000 | 0.924 ± 0.005 | 0.935 ± 0.001 | 0.930 ± 0.002 |
+| 1000 | 0.934 ± 0.001 | 0.926 ± 0.007 | – | 0.935 ± 0.001 |
+| 2000 | 0.934 ± 0.001 | 0.935 ± 0.004 | – | 0.934 ± 0.003 |
+
+![low data](figures/low_data.png)
+
+### VQC ablation: depth and data re-uploading
+
+| variant | n_seeds | ROC-AUC | recall@95%prec | train s | params |
+|---|---|---|---|---|---|
+| layers1 | 3 | 0.799 ± 0.011 | 0.01 | 9.1 | 26 |
+| layers2 | 3 | 0.928 ± 0.003 | 0.26 | 15.1 | 50 |
+| layers3 | 3 | 0.934 ± 0.003 | 0.29 | 21.1 | 74 |
+| layers5 | 3 | 0.935 ± 0.005 | 0.38 | 32.8 | 122 |
+| reupload_L3 | 3 | 0.933 ± 0.001 | 0.31 | 25.8 | 74 |
+
+### Feature-count sweep
+
+The VQC uses k qubits for k features; classical models can use more features. `PCA variance kept` is the share of embedding variance retained.
+
+| features k | PCA variance kept | logreg | mlp | vqc |
+|---|---|---|---|---|
+| 4 | 18.3% | 0.929 | 0.926 | 0.930 |
+| 6 | 23.4% | – | – | 0.926 |
+| 8 | 27.5% | 0.933 | 0.932 | 0.934 |
+| 16 | 38.7% | 0.944 | 0.941 | – |
+| 32 | 52.0% | 0.956 | 0.955 | – |
+| 64 | 66.9% | 0.963 | 0.961 | – |
+
+![feature sweep](figures/feature_sweep.png)
 
 ## Stage 2: PII maskers
 

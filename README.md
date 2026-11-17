@@ -37,6 +37,9 @@ Generated from `results/` by `make report` (full profile). See [`reports/report.
 - Gate: VQC (exact) ROC-AUC 0.933 vs logistic regression 0.934 (difference -0.001); VQC trains in 21.0 s vs 0.002 s.
 - Gate: fine-tuned MiniLM without the PCA bottleneck reaches ROC-AUC 0.995, against 0.935 for the 8-feature logistic regression (both trained on the full training pool).
 - Barren plateau: mean gradient variance falls 66x from 2 to 8 qubits.
+- Low data (n=50): Logistic regression 0.922, MLP 0.816, Quantum kernel SVM 0.923, VQC 0.908 ROC-AUC.
+- VQC ablation: best variant `layers5` with ROC-AUC 0.935.
+- Feature sweep: logistic regression goes from ROC-AUC 0.929 at k=4 to 0.963 at k=64.
 - DeBERTa-v3-small: clean entity F1 0.917, character leak 0.011; worst stress-set F1 is 0.695 on `obf_all` (leak 0.051).
 - Qwen2.5-0.5B + LoRA: clean entity F1 0.847, character leak 0.107; worst stress-set F1 is 0.762 on `cross_de` (leak 0.125).
 - Pipeline (clean): masker on whole documents leaks 0.0124; on sentences 0.1554.

@@ -4,6 +4,7 @@ paths:
   data_dir: data/processed
   raw_dir: data/raw
   cache_dir: data/cache
+  ckpt_dir: checkpoints
   results_dir: results
   reports_dir: reports
 data:
@@ -47,13 +48,17 @@ gate:
   finetune: {epochs: 3, batch_size: 32, lr: 2.0e-5, full_size: true}
 masker:
   seeds: [0, 1, 2]
+  eval_sets: [clean, obf_email, obf_phone, obf_name, obf_id, obf_all, rare, cross_de, cross_fr, cross_it, context_only]
+  eval_max_docs: null        # evaluate whole sets
+  n_latency_docs: 30         # documents timed one at a time for p50/p95 latency
   deberta: {model: microsoft/deberta-v3-small, epochs: 5, batch_size: 16, lr: 5.0e-5, max_length: 512, early_stopping_patience: 2}
   llms:
     qwen: {model: Qwen/Qwen2.5-0.5B-Instruct}
     smollm: {model: HuggingFaceTB/SmolLM2-360M-Instruct}
+  zero_shot: {model: Qwen/Qwen2.5-0.5B-Instruct}
   lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]}
-  sft: {epochs: 2, batch_size: 8, grad_accum: 2, lr: 2.0e-4, max_length: 1024}
-  inference: {max_new_tokens: 256, batch_size: 8}
+  sft: {epochs: 2, batch_size: 8, grad_accum: 2, lr: 2.0e-4, max_length: 1024, max_steps: -1}
+  inference: {max_new_tokens: 384, batch_size: 48}
 eval:
   bootstrap_resamples: 1000
   ci: 0.95

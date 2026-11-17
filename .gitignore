@@ -25,3 +25,4 @@ outputs/
 data/processed_smoke/*.parquet
 data/processed*/**/*.parquet
 logs/
+results/**/*.parquet

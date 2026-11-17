@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 Span = dict[str, Any]  # {"start": int, "end": int, "label": str, "value": str}
 Doc = dict[str, Any]  # {"id": str, "language": str, "text": str, "spans": list[Span]}
@@ -149,3 +150,37 @@ def sample_docs(pool: Sequence[Doc], n: int, seed: int) -> list[Doc]:
 def label_counts(docs: Sequence[Doc]) -> Counter:
     """Number of gold spans per label."""
     return Counter(sp["label"] for d in docs for sp in d["spans"])
+
+
+EXTRA_COLUMNS = ("source_id", "transform", "n_changed", "eval_labels")
+
+
+def docs_to_frame(docs: Sequence[Doc]) -> pd.DataFrame:
+    """Document table: spans as JSON, SFT prompt/target, plus any stress-set metadata columns."""
+    from piiguard.data.sft import build_prompt, build_target
+
+    df = pd.DataFrame(
+        {
+            "id": [d["id"] for d in docs],
+            "language": [d["language"] for d in docs],
+            "text": [d["text"] for d in docs],
+            "spans_json": [json.dumps(d["spans"], ensure_ascii=False) for d in docs],
+            "prompt": [build_prompt(d["text"]) for d in docs],
+            "target": [build_target(d["text"], d["spans"]) for d in docs],
+        }
+    )
+    for col in EXTRA_COLUMNS:
+        if any(col in d for d in docs):
+            vals = [d.get(col) for d in docs]
+            if col == "eval_labels":
+                vals = [json.dumps(v) if v is not None else None for v in vals]
+            df[col] = vals
+    return df
+
+
+def frame_to_docs(df: pd.DataFrame) -> list[Doc]:
+    """Inverse of :func:`docs_to_frame` for the core columns (spans decoded from JSON)."""
+    return [
+        {"id": r.id, "language": r.language, "text": r.text, "spans": json.loads(r.spans_json)}
+        for r in df.itertuples()
+    ]

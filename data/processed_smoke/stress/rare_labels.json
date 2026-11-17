@@ -1,0 +1,25 @@
+{
+  "rare": [
+    "GEOCOORD",
+    "LASTNAME3",
+    "GIVENNAME2",
+    "LASTNAME2",
+    "SECADDRESS",
+    "COUNTRY",
+    "TITLE",
+    "STREET",
+    "BUILDING"
+  ],
+  "testable": [
+    "GEOCOORD",
+    "LASTNAME3",
+    "GIVENNAME2",
+    "LASTNAME2",
+    "SECADDRESS",
+    "COUNTRY",
+    "TITLE",
+    "STREET",
+    "BUILDING"
+  ],
+  "untestable": []
+}

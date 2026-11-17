@@ -10,10 +10,9 @@ import json
 from collections import Counter
 from pathlib import Path
 
-import pandas as pd
-
 from piiguard.data.bio import build_label_list, roundtrip_ok
 from piiguard.data.load import (
+    docs_to_frame,
     download_file,
     label_counts,
     read_jsonl,
@@ -22,7 +21,6 @@ from piiguard.data.load import (
     to_docs,
 )
 from piiguard.data.sentences import balance, sentence_table
-from piiguard.data.sft import build_prompt, build_target
 from piiguard.utils import ensure_dir, get_logger, load_config, set_seed, timed, write_run_record
 
 log = get_logger("prepare_data")
@@ -36,20 +34,6 @@ FIX_HEADER = [
     "docs kept",
 ]
 LICENSE_URL = "https://huggingface.co/datasets/ai4privacy/pii-masking-300k"
-
-
-def docs_frame(docs: list[dict]) -> pd.DataFrame:
-    """Document table: spans stored as JSON, plus the SFT prompt/target columns."""
-    return pd.DataFrame(
-        {
-            "id": [d["id"] for d in docs],
-            "language": [d["language"] for d in docs],
-            "text": [d["text"] for d in docs],
-            "spans_json": [json.dumps(d["spans"], ensure_ascii=False) for d in docs],
-            "prompt": [build_prompt(d["text"]) for d in docs],
-            "target": [build_target(d["text"], d["spans"]) for d in docs],
-        }
-    )
 
 
 def md_table(header: list[str], rows: list[list]) -> str:
@@ -110,7 +94,7 @@ def main() -> None:
     label_list = build_label_list(label_counts(splits["train"]).keys())
     (out_dir / "labels.json").write_text(json.dumps(label_list, indent=2))
     for name, docs in splits.items():
-        docs_frame(docs).to_parquet(out_dir / f"{name}.parquet", index=False)
+        docs_to_frame(docs).to_parquet(out_dir / f"{name}.parquet", index=False)
 
     # ---- gate sentence sets
     gate_stats: dict[str, dict] = {}

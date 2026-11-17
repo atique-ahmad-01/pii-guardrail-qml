@@ -23,6 +23,8 @@ data:
   gate_balanced_min_negatives: 1000
 stress:
   rare_label_fraction: 0.30
+  min_test_support: 5   # rare labels with fewer test spans are reported as untestable
+  obfuscation_kinds: [email, phone, name, id]
   n_context_only: 50
 gate:
   embed_model: sentence-transformers/all-MiniLM-L6-v2

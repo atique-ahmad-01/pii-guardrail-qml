@@ -26,3 +26,6 @@ data/processed_smoke/*.parquet
 data/processed*/**/*.parquet
 logs/
 results/**/*.parquet
+
+# local session notes (not for GitHub)
+PROGRESS_NOTES.md

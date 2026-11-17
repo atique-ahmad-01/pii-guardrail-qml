@@ -12,6 +12,7 @@ METRICS = [
     "pr_auc",
     "recall_at_95p",
     "f1",
+    "accuracy",
     "train_s",
     "latency_ms_single",
     "params",
@@ -22,7 +23,8 @@ METRICS = [
 
 def load_records(gate_dir: str | Path) -> list[dict]:
     """All JSON run records in ``gate_dir``."""
-    return [json.loads(p.read_text()) for p in sorted(Path(gate_dir).glob("*.json"))]
+    recs = [json.loads(p.read_text()) for p in sorted(Path(gate_dir).glob("*.json"))]
+    return [r for r in recs if "metrics" in r]  # skips summary_*.json files
 
 
 def summarize(gate_dir: str | Path) -> tuple[pd.DataFrame, pd.DataFrame]:

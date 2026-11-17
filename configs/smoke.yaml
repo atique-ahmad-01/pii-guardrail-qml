@@ -2,13 +2,20 @@ profile: smoke
 seed: 42
 paths:
   data_dir: data/processed_smoke
+  raw_dir: data/raw
   cache_dir: data/cache
   results_dir: results/smoke
   reports_dir: reports/smoke
 data:
   hf_dataset: ai4privacy/pii-masking-300k
+  files:   # relative to the dataset repo
+    train_en: data/train/1english_openpii_30k.jsonl
+    test_en: data/validation/1english_openpii_8k.jsonl
+    de: data/validation/german_openpii_8k.jsonl
+    fr: data/validation/french_openpii_8k.jsonl
+    it: data/validation/italian_openpiii_8k.jsonl
   train_lang: en
-  stress_langs: [de, fr, it]
+  stress_langs: [de, fr, it]   # keys into data.files
   n_train: 300
   n_val: 100
   n_test: 100

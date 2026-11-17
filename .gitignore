@@ -22,3 +22,4 @@ checkpoints/
 outputs/
 .env
 .tools/
+data/processed_smoke/*.parquet

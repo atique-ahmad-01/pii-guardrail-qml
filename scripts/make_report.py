@@ -755,7 +755,7 @@ def summary_figure(ci: pd.DataFrame, cost: pd.DataFrame, path: Path) -> None:
 
 def readme_block(res: Path, bits: list[str]) -> str:
     """Compact 'results at a glance' section built only from files in ``results/``."""
-    out = [README_START, "## Results at a glance", ""]
+    out = [README_START, "### Key findings", ""]
     out.append(
         "Generated from `results/` by `make report` (full profile). See "
         "[`reports/report.md`](reports/report.md) for confidence intervals, paired tests, "

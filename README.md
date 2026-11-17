@@ -1,36 +1,103 @@
 # pii-guardrail-qml
 
-**Clean F1 hides leaks: stress-testing small-language-model PII maskers, with a quantum-vs-classical benchmark for the PII gate.**
+**A two-stage PII guardrail for LLMs.** Stage 1 detects sensitive information with quantum (simulated) and
+classical classifiers; Stage 2 uses small language models to mask it and measures how much still leaks
+under stress.
 
-A two-stage PII guardrail for LLM pipelines:
+> Research name: *Clean F1 hides leaks: stress-testing small-language-model PII maskers, with a
+> quantum-vs-classical benchmark for the PII gate.*
+
+## 1. What problem does this solve?
+
+People paste personal data (**PII**: names, emails, phone numbers, ID numbers) into text that is sent to
+AI systems. A **guardrail** cleans the text first:
 
 ```
-text ─► Stage 1 GATE (contains PII?) ─► Stage 2 MASKER (find + redact spans) ─► safe text
-         classical vs quantum              encoder vs small instruction LLMs
+Input :  "Hi, I am Jane Smith. Call me on 555-0142 or write to jane@example.com."
+Output:  "Hi, I am [NAME]. Call me on [PHONE] or write to [EMAIL]."
 ```
 
-The full task description is in [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md). The results are in
-[`reports/report.md`](reports/report.md), generated from files in `results/`.
+The hard part is not clean text like the example. It is text where the data is written in a tricky
+way, for example `jane at example dot com`, or in another language. A model can score well on clean
+text and still let that data through, which is why the title says *clean F1 hides leaks*.
 
-**Honesty rule:** every number in `reports/` and in the results section below comes from files in
-`results/`; `make report` regenerates both. Nothing is typed by hand.
+## 2. How it works
 
-## What is measured
+```mermaid
+flowchart LR
+    A[Text in] --> B[Split into sentences]
+    B --> C{"Stage 1: Gate<br/>does this sentence<br/>contain PII?"}
+    C -- no --> E[Keep sentence unchanged]
+    C -- yes --> D["Stage 2: Masker<br/>find the PII and hide it"]
+    D --> F[Safe text out]
+    E --> F
+```
 
-| Part | Question | Models |
+- **Stage 1, the gate** answers a yes/no question per sentence. It is meant to be cheap, so the heavier
+  masker only runs when needed. We compare **classical and (simulated) quantum** classifiers here.
+- **Stage 2, the masker** finds the exact PII and replaces it with a label such as `[EMAIL]`. We compare a
+  small encoder model against small language models.
+
+The guardrail sits in front of the system that receives the text, so in principle it can protect any
+LLM. We measured the guardrail itself; we did not connect it to a downstream chatbot.
+
+## 3. What we compare
+
+The two stages are **different problems**, so models are only compared inside their own stage.
+
+| Stage | Task | Models compared |
 |---|---|---|
-| Stage 1 gate | Does a quantum classifier beat classical ones on identical 8-feature inputs? | logistic regression, MLP, VQC (exact / shots / depolarizing noise), quantum-kernel SVM (angle, IQP), fine-tuned MiniLM as an upper bound |
-| Extra quantum scenarios | Low-data learning curves, VQC depth and data re-uploading, number of features / qubits | same features, exact simulation |
-| Stage 2 masker | How much PII leaks under stress, and does clean F1 predict it? | DeBERTa-v3-small token classifier; Qwen2.5-0.5B and SmolLM2-360M with LoRA (JSON output); Qwen zero-shot |
-| Stress sets | Obfuscated emails / phones / names / IDs, rare PII types, German / French / Italian, context-only identifiers | built from the held-out test split |
-| Pipeline | Does the gate save masker work, and what does it cost in leaks and latency? | each gate in front of DeBERTa, plus masker-only baselines and an oracle gate |
-| Statistics | Are differences real? | 95% bootstrap CIs over documents, paired bootstrap tests, Holm correction |
+| 1. Gate | sentence → "has PII? yes/no" | logistic regression, small MLP, **VQC** (quantum circuit), **quantum-kernel SVM** (angle and IQP encodings), plus a fine-tuned MiniLM as an upper bound |
+| 2. Masker | document → exact PII spans | **DeBERTa-v3-small**, **Qwen2.5-0.5B + LoRA**, **SmolLM2-360M + LoRA**, and Qwen zero-shot (no training) as a baseline |
 
-Headline privacy metric: **character leak rate**, the share of gold PII characters not covered by any
-predicted mask (type ignored). Strict entity F1 is reported next to it.
+All gate models except the upper bound see the **same 8 numbers per sentence** (a compressed sentence
+embedding), so the quantum-vs-classical comparison is fair. All quantum models run on a **classical
+simulator**; no real quantum hardware was used.
+
+## 4. How we test it: stress sets
+
+Besides the normal test set, each masker is scored on harder text built from the held-out data:
+
+| Stress set | What changes | Example |
+|---|---|---|
+| Obfuscated email / phone / name / ID | PII written in an unusual way | `jane at example dot com`, digits spelled as words, lowercase names with extra spaces, IDs with odd separators |
+| Rare types | only the least frequent 30% of PII types in the training data | the types the model has seen least |
+| Other languages | German, French, Italian text | same task, different language |
+| Context-only | 50 hand-written examples where an identifier is only recognisable from the words around it | label `CONTEXT_ID`, never seen in training |
+
+Two numbers are reported side by side:
+
+- **Entity F1**: did the model find each piece of PII with the exact boundaries and the right label?
+- **Character leak rate**: how much of the PII is still readable after masking? This is the privacy
+  number. A model can have a decent F1 and still leak.
+
+## 5. The combined pipeline
+
+We also test the gate and masker together and compare different ways of running the masker:
+
+```mermaid
+flowchart TB
+    T[Document] --> S[Split into sentences]
+    S --> G[Gate scores each sentence]
+    G -->|flagged sentences| M[Masker]
+    G -.->|skipped sentences| K[Left unchanged]
+    T --> W["Baseline: masker on the<br/>whole document"]
+    S --> Q["Baseline: masker on<br/>every sentence"]
+```
+
+| Arm | What runs the masker |
+|---|---|
+| `masker_doc` | the whole document, no gate |
+| `masker_sent` | every sentence, no gate |
+| `gate_*` | only sentences the gate flags (logistic regression, MLP, VQC or fine-tuned MiniLM) |
+| `gate_oracle` | only sentences that truly contain PII (the best any gate could do) |
+
+Comparing `masker_sent` with `gate_*` isolates what the gate itself costs.
+
+## 6. Results
 
 <!-- RESULTS:START (generated by scripts/make_report.py from results/; do not edit) -->
-## Results at a glance
+### Key findings
 
 Generated from `results/` by `make report` (full profile). See [`reports/report.md`](reports/report.md) for confidence intervals, paired tests, per-set tables and limitations.
 
@@ -87,67 +154,65 @@ Generated from `results/` by `make report` (full profile). See [`reports/report.
 
 ### Reading the results
 
-- **Quantum results are classical simulations.** No real quantum hardware was used. Latency and training
-  time of the quantum models are simulator timings.
+- **Quantum results are classical simulations.** Their training time and latency are simulator timings,
+  not hardware numbers.
 - **F1 and leak rate answer different questions.** F1 asks whether each span was found exactly; the leak
-  rate asks how much PII is still readable after masking. A model can have a decent F1 and still leak.
-- **The gate's accuracy is limited by its 8 input features,** not only by the model: the fine-tuned
-  MiniLM, which sees the whole sentence, is the upper bound.
-- **Pipeline rows:** `masker_doc` runs the masker on the whole document; `masker_sent` on every sentence;
-  `gate_*` only on the sentences the gate lets through; `gate_oracle` only on sentences that truly contain
-  PII. Comparing `masker_sent` with `gate_*` isolates the gate's effect.
-- Zero-shot is one seed; trained maskers use three. Confidence intervals and paired tests are in the report.
+  rate asks how much PII is still readable.
+- **The gate is limited by its 8 input numbers**, not only by the model type. The fine-tuned MiniLM, which
+  reads the whole sentence, is the upper bound.
+- **Pipeline:** comparing `masker_sent` with each `gate_*` row isolates the gate. The gap between
+  `masker_doc` and `masker_sent` is the cost of masking sentence by sentence, not the gate.
+- Zero-shot has one seed; trained maskers have three. Confidence intervals, paired tests and extra quantum
+  experiments (low data, depth, feature count) are in [`reports/report.md`](reports/report.md).
 
-## Quick start
+## 7. Run it
 
 ```bash
-make setup      # uv sync --all-extras
-make test       # unit tests (offline)
+make setup      # install (uses uv)
+make test       # unit tests, offline
 make lint
-make smoke      # tiny profile of every stage, a few minutes
-make reproduce  # full profile: data -> stress -> gate -> masker -> pipeline -> eval -> report (CUDA GPU)
+make smoke      # tiny profile of each stage
+make reproduce  # full profile; needs a CUDA GPU (the runs took a few hours in total)
 ```
 
-Individual stages: `make data stress gate masker pipeline eval report`. The extra quantum scenarios run
-with `python scripts/run_quantum_extras.py --config configs/full.yaml`. Device is auto-selected
-`cuda → mps → cpu`. Configs: `configs/smoke.yaml`, `configs/full.yaml`.
+Individual stages: `make data stress gate masker pipeline eval report`. The extra quantum experiments run
+with `python scripts/run_quantum_extras.py --config configs/full.yaml`. The device is chosen automatically
+(`cuda`, then `mps`, then `cpu`). Settings are in `configs/smoke.yaml` and `configs/full.yaml`.
 
-Optional demo (`pip install gradio`): `python demo/app.py --config configs/full.yaml`.
+Optional demo (needs `pip install gradio`): `python demo/app.py --config configs/full.yaml`.
 
-## Layout
+**Honesty rule:** every number in `reports/` and in the results section above comes from files in
+`results/`; `make report` regenerates both. Nothing is typed by hand.
+
+## 8. Project layout
 
 ```
-configs/    smoke.yaml, full.yaml        scripts/   one entry point per phase
-src/piiguard/data/      loading, BIO, sentences, stress sets, SFT pairs
-src/piiguard/gate/      classical, VQC, quantum kernel, MiniLM, metrics
-src/piiguard/masker/    DeBERTa, LoRA SFT, LLM inference, span parsing
-src/piiguard/pipeline/  gates, assembly, demo core
-src/piiguard/eval/      metrics, bootstrap
-results/    run records (config, seed, git commit, timings, metrics) and summary CSVs
-reports/    report.md and figures
+configs/                 smoke.yaml (quick) and full.yaml (real runs)
+scripts/                 one entry point per phase (prepare_data, run_stress, run_gate, run_masker,
+                         run_pipeline, run_eval, run_quantum_extras, make_report)
+src/piiguard/data/       loading, labels, sentences, stress sets, training pairs
+src/piiguard/gate/       classical models, VQC, quantum kernel, MiniLM, metrics
+src/piiguard/masker/     DeBERTa, LoRA fine-tuning, LLM inference, span parsing
+src/piiguard/pipeline/   gates, assembly of the two stages, demo core
+src/piiguard/eval/       metrics and bootstrap confidence intervals
+results/                 run records and summary tables      reports/   report.md and figures
 ```
 
-## Status
+The original task description is in [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
 
-| Phase | Description | Status |
-|---|---|---|
-| 0 | Scaffold | done |
-| 1 | Data | done (see `data/processed*/data_card.md`) |
-| 2 | Stress suite | done (context-only examples await the owner's review) |
-| 3 | Gate (quantum vs classical) | done |
-| 4 | Maskers | done |
-| 5 | Pipeline | code done; see report for the run |
-| 6 | Evaluation (bootstrap, paired tests) | done |
-| 7 | Report | done (`reports/report.md`) |
-| 8 | Demo | done (optional, Gradio) |
-| extras | Quantum scenarios | done |
+## 9. Limitations
 
-## Limitations
+- All quantum results are **simulated**; real hardware was not used.
+- The dataset (`ai4privacy/pii-masking-300k`) is **synthetic**; results may not transfer to real text.
+- The gate sees only **8 numbers per sentence**, which caps every gate model except the upper bound.
+- Language-model maskers return PII as text and I locate it by **exact string matching**, which can
+  over-mask repeated words and miss altered strings.
+- Masking **sentence by sentence** leaks more than masking whole documents (see the pipeline table).
+- The 50 context-only examples are hand-written and have not been independently reviewed.
+- The guardrail was **not tested with a downstream LLM**.
 
-See the limitations section of the report. In short: quantum results are classical simulations (no
-hardware), the data is synthetic, the 8-feature bottleneck bounds every gate model, and the
-LLM span recovery is exact-string matching.
+## 10. Dataset license
 
-## Dataset license
-
-Data comes from [`ai4privacy/pii-masking-300k`](https://huggingface.co/datasets/ai4privacy/pii-masking-300k), which carries its own license and terms. Check the dataset card before redistributing any derived data. Processed data is git-ignored here.
+Data comes from [`ai4privacy/pii-masking-300k`](https://huggingface.co/datasets/ai4privacy/pii-masking-300k),
+which carries its own license and terms. Check the dataset card before redistributing any derived data.
+Processed data is git-ignored here.

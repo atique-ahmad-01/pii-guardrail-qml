@@ -33,7 +33,7 @@ Device is auto-selected `cuda → mps → cpu`. Configs: `configs/smoke.yaml`, `
 | 1 | Data | done (full + smoke built, see `data/processed*/data_card.md`) |
 | 2 | Stress suite | done (full + smoke built; context-only examples await owner review) |
 | 3 | Gate (quantum vs classical) | done (full run on GPU host: `results/gate/summary*.csv`) |
-| 4 | Maskers (DeBERTa, Qwen LoRA, SmolLM2 LoRA, zero-shot) | code done, smoke passes; full run pending |
+| 4 | Maskers (DeBERTa, Qwen LoRA, SmolLM2 LoRA, zero-shot) | done, seed 0 only (`results/masker/summary*.csv`); seeds 1-2 pending |
 | 5 | Pipeline | pending |
 | 6 | Evaluation | pending |
 | 7 | Report | pending |

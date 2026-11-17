@@ -57,7 +57,7 @@ masker:
     smollm: {model: HuggingFaceTB/SmolLM2-360M-Instruct}
   zero_shot: {model: Qwen/Qwen2.5-0.5B-Instruct}
   lora: {r: 16, alpha: 32, dropout: 0.05, target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]}
-  sft: {epochs: 2, batch_size: 8, grad_accum: 2, lr: 2.0e-4, max_length: 1024, max_steps: -1}
+  sft: {epochs: 2, batch_size: 2, grad_accum: 8, lr: 2.0e-4, max_length: 1024, max_steps: -1}
   inference: {max_new_tokens: 384, batch_size: 48}
 eval:
   bootstrap_resamples: 1000

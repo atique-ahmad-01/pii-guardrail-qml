@@ -13,10 +13,14 @@ _Generated from `/Users/ebricks/Desktop/pii-guardrail-qml/results` by `scripts/m
 - DeBERTa-v3-small: clean entity F1 0.917, character leak 0.011; worst stress-set F1 is 0.695 on `obf_all` (leak 0.051).
 - Qwen2.5-0.5B + LoRA: clean entity F1 0.847, character leak 0.107; worst stress-set F1 is 0.762 on `cross_de` (leak 0.125).
 - Pipeline (clean): masker on whole documents leaks 0.0124; on sentences 0.1554.
-- Pipeline (clean) gate_logreg: skips 0.21 of sentences, leak 0.1620, latency p50 6.8 ms vs 3.3 ms masker-only.
+- Pipeline (clean) docgate_logreg (whole-document masking, gate may skip a document): leak 0.0124, skips 0.0% of documents, latency p50 5.6 ms.
+- Pipeline (clean) docgate_minilm_ft (whole-document masking, gate may skip a document): leak 0.0132, skips 9.6% of documents, latency p50 5.2 ms.
+- Pipeline (clean) docgate_mlp (whole-document masking, gate may skip a document): leak 0.0124, skips 0.0% of documents, latency p50 5.6 ms.
+- Pipeline (clean) docgate_vqc (whole-document masking, gate may skip a document): leak 0.0124, skips 0.0% of documents, latency p50 10.3 ms.
+- Pipeline (clean) gate_logreg: skips 0.21 of sentences, leak 0.1620, latency p50 6.7 ms vs 3.3 ms masker-only.
 - Pipeline (clean) gate_minilm_ft: skips 0.51 of sentences, leak 0.1586, latency p50 5.1 ms vs 3.3 ms masker-only.
-- Pipeline (clean) gate_mlp: skips 0.18 of sentences, leak 0.1585, latency p50 6.9 ms vs 3.3 ms masker-only.
-- Pipeline (clean) gate_vqc: skips 0.17 of sentences, leak 0.1577, latency p50 11.4 ms vs 3.3 ms masker-only.
+- Pipeline (clean) gate_mlp: skips 0.18 of sentences, leak 0.1585, latency p50 6.8 ms vs 3.3 ms masker-only.
+- Pipeline (clean) gate_vqc: skips 0.17 of sentences, leak 0.1577, latency p50 11.2 ms vs 3.3 ms masker-only.
 
 ## Stage 1: PII gate (quantum vs classical)
 
@@ -320,148 +324,223 @@ Latency is one document at a time; throughput is batched over all evaluation set
 
 Arms: `masker_doc` = masker on the whole document; `masker_sent` = masker on every sentence (isolates the effect of sentence splitting); `gate_*` = masker only on the sentences the gate flags (threshold chosen on validation data to keep ≥ the configured share of PII sentences); `gate_oracle` = only sentences that truly contain PII.
 
-| set | arm | F1 [95% CI] | char leak [95% CI] | sentences skipped | gate recall | latency p50 ms |
+| set | arm | F1 [95% CI] | char leak [95% CI] | skipped by gate | gate recall | latency p50 ms |
 |---|---|---|---|---|---|---|
-| clean | gate_logreg | 0.788 [0.764, 0.811] | 0.1620 [0.1344, 0.1905] | 0.21 | 0.993 | 6.8 |
-| context_only | gate_logreg | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0.00 | 1.000 | 6.8 |
-| cross_de | gate_logreg | 0.581 [0.547, 0.614] | 0.2983 [0.2597, 0.3385] | 0.17 | 0.993 | 6.8 |
-| obf_all | gate_logreg | 0.591 [0.563, 0.617] | 0.2866 [0.2557, 0.3180] | 0.19 | 0.995 | 6.8 |
-| rare | gate_logreg | 0.773 [0.743, 0.801] | 0.1583 [0.1285, 0.1898] | 0.18 | 0.995 | 6.8 |
-| clean | gate_minilm_ft | 0.789 [0.767, 0.812] | 0.1586 [0.1315, 0.1875] | 0.51 | 0.990 | 5.1 |
-| context_only | gate_minilm_ft | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0.00 | 1.000 | 5.1 |
-| cross_de | gate_minilm_ft | 0.582 [0.548, 0.615] | 0.2985 [0.2598, 0.3385] | 0.31 | 0.991 | 5.1 |
-| obf_all | gate_minilm_ft | 0.591 [0.564, 0.617] | 0.2840 [0.2530, 0.3151] | 0.44 | 0.994 | 5.1 |
-| rare | gate_minilm_ft | 0.774 [0.745, 0.803] | 0.1523 [0.1230, 0.1830] | 0.42 | 0.995 | 5.1 |
-| clean | gate_mlp | 0.787 [0.764, 0.810] | 0.1585 [0.1310, 0.1871] | 0.18 | 0.996 | 6.9 |
-| context_only | gate_mlp | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0.00 | 1.000 | 6.9 |
-| cross_de | gate_mlp | 0.581 [0.547, 0.614] | 0.2987 [0.2600, 0.3385] | 0.15 | 0.994 | 6.9 |
-| obf_all | gate_mlp | 0.591 [0.563, 0.617] | 0.2862 [0.2552, 0.3172] | 0.16 | 0.996 | 6.9 |
-| rare | gate_mlp | 0.770 [0.740, 0.798] | 0.1617 [0.1316, 0.1937] | 0.15 | 0.995 | 6.9 |
-| clean | gate_oracle | 0.797 [0.774, 0.819] | 0.1554 [0.1281, 0.1841] | 0.55 | 1.000 | – |
-| context_only | gate_oracle | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0.00 | 1.000 | – |
-| cross_de | gate_oracle | 0.598 [0.564, 0.631] | 0.2983 [0.2597, 0.3385] | 0.53 | 1.000 | – |
-| obf_all | gate_oracle | 0.595 [0.567, 0.621] | 0.2830 [0.2520, 0.3141] | 0.48 | 1.000 | – |
-| rare | gate_oracle | 0.780 [0.751, 0.808] | 0.1512 [0.1222, 0.1818] | 0.46 | 1.000 | – |
-| clean | gate_vqc | 0.788 [0.765, 0.811] | 0.1577 [0.1305, 0.1866] | 0.17 | 0.996 | 11.4 |
-| context_only | gate_vqc | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0.00 | 1.000 | 11.4 |
-| cross_de | gate_vqc | 0.581 [0.547, 0.614] | 0.2983 [0.2597, 0.3385] | 0.14 | 1.000 | 11.4 |
-| obf_all | gate_vqc | 0.591 [0.564, 0.618] | 0.2845 [0.2534, 0.3155] | 0.15 | 0.997 | 11.4 |
-| rare | gate_vqc | 0.774 [0.745, 0.802] | 0.1546 [0.1257, 0.1851] | 0.14 | 0.998 | 11.4 |
+| clean | docgate_logreg | 0.923 [0.908, 0.936] | 0.0124 [0.0073, 0.0180] | 0.0% of documents | – | 5.6 |
+| context_only | docgate_logreg | 0.000 [0.000, 0.000] | 0.9238 [0.9000, 0.9454] | 0.0% of documents | – | 5.6 |
+| cross_de | docgate_logreg | 0.774 [0.750, 0.797] | 0.0224 [0.0167, 0.0289] | 0.0% of documents | – | 5.6 |
+| obf_all | docgate_logreg | 0.710 [0.684, 0.735] | 0.0588 [0.0476, 0.0709] | 0.0% of documents | – | 5.6 |
+| rare | docgate_logreg | 0.880 [0.856, 0.903] | 0.0329 [0.0169, 0.0516] | 0.0% of documents | – | 5.6 |
+| clean | docgate_minilm_ft | 0.923 [0.908, 0.936] | 0.0132 [0.0078, 0.0192] | 9.6% of documents | – | 5.2 |
+| context_only | docgate_minilm_ft | 0.000 [0.000, 0.000] | 0.9238 [0.9000, 0.9454] | 0.0% of documents | – | 5.2 |
+| cross_de | docgate_minilm_ft | 0.774 [0.750, 0.797] | 0.0224 [0.0167, 0.0289] | 0.4% of documents | – | 5.2 |
+| obf_all | docgate_minilm_ft | 0.710 [0.684, 0.735] | 0.0588 [0.0476, 0.0709] | 0.0% of documents | – | 5.2 |
+| rare | docgate_minilm_ft | 0.880 [0.856, 0.903] | 0.0329 [0.0169, 0.0516] | 0.0% of documents | – | 5.2 |
+| clean | docgate_mlp | 0.923 [0.908, 0.936] | 0.0124 [0.0073, 0.0180] | 0.0% of documents | – | 5.6 |
+| context_only | docgate_mlp | 0.000 [0.000, 0.000] | 0.9238 [0.9000, 0.9454] | 0.0% of documents | – | 5.6 |
+| cross_de | docgate_mlp | 0.774 [0.750, 0.797] | 0.0224 [0.0167, 0.0289] | 0.0% of documents | – | 5.6 |
+| obf_all | docgate_mlp | 0.710 [0.684, 0.735] | 0.0588 [0.0476, 0.0709] | 0.0% of documents | – | 5.6 |
+| rare | docgate_mlp | 0.879 [0.855, 0.903] | 0.0338 [0.0176, 0.0528] | 0.2% of documents | – | 5.6 |
+| clean | docgate_oracle | 0.925 [0.910, 0.938] | 0.0124 [0.0073, 0.0180] | 13.4% of documents | – | – |
+| context_only | docgate_oracle | 0.000 [0.000, 0.000] | 0.9238 [0.9000, 0.9454] | 0.0% of documents | – | – |
+| cross_de | docgate_oracle | 0.779 [0.755, 0.801] | 0.0224 [0.0167, 0.0289] | 10.2% of documents | – | – |
+| obf_all | docgate_oracle | 0.710 [0.684, 0.735] | 0.0588 [0.0476, 0.0709] | 0.0% of documents | – | – |
+| rare | docgate_oracle | 0.880 [0.856, 0.903] | 0.0329 [0.0169, 0.0516] | 0.0% of documents | – | – |
+| clean | docgate_vqc | 0.923 [0.908, 0.936] | 0.0124 [0.0073, 0.0180] | 0.0% of documents | – | 10.3 |
+| context_only | docgate_vqc | 0.000 [0.000, 0.000] | 0.9238 [0.9000, 0.9454] | 0.0% of documents | – | 10.3 |
+| cross_de | docgate_vqc | 0.774 [0.750, 0.797] | 0.0224 [0.0167, 0.0289] | 0.0% of documents | – | 10.3 |
+| obf_all | docgate_vqc | 0.710 [0.684, 0.735] | 0.0588 [0.0476, 0.0709] | 0.0% of documents | – | 10.3 |
+| rare | docgate_vqc | 0.880 [0.856, 0.903] | 0.0329 [0.0169, 0.0516] | 0.0% of documents | – | 10.3 |
+| clean | gate_logreg | 0.788 [0.764, 0.811] | 0.1620 [0.1344, 0.1905] | 21% of sentences | 0.993 | 6.7 |
+| context_only | gate_logreg | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0% of sentences | 1.000 | 6.7 |
+| cross_de | gate_logreg | 0.581 [0.547, 0.614] | 0.2983 [0.2597, 0.3385] | 17% of sentences | 0.993 | 6.7 |
+| obf_all | gate_logreg | 0.591 [0.563, 0.617] | 0.2866 [0.2557, 0.3180] | 19% of sentences | 0.995 | 6.7 |
+| rare | gate_logreg | 0.773 [0.743, 0.801] | 0.1583 [0.1285, 0.1898] | 18% of sentences | 0.995 | 6.7 |
+| clean | gate_minilm_ft | 0.789 [0.767, 0.812] | 0.1586 [0.1315, 0.1875] | 51% of sentences | 0.990 | 5.1 |
+| context_only | gate_minilm_ft | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0% of sentences | 1.000 | 5.1 |
+| cross_de | gate_minilm_ft | 0.582 [0.548, 0.615] | 0.2985 [0.2598, 0.3385] | 31% of sentences | 0.992 | 5.1 |
+| obf_all | gate_minilm_ft | 0.591 [0.564, 0.617] | 0.2840 [0.2530, 0.3151] | 44% of sentences | 0.994 | 5.1 |
+| rare | gate_minilm_ft | 0.774 [0.745, 0.803] | 0.1523 [0.1230, 0.1830] | 42% of sentences | 0.995 | 5.1 |
+| clean | gate_mlp | 0.787 [0.764, 0.810] | 0.1585 [0.1310, 0.1871] | 18% of sentences | 0.996 | 6.8 |
+| context_only | gate_mlp | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0% of sentences | 1.000 | 6.8 |
+| cross_de | gate_mlp | 0.581 [0.547, 0.614] | 0.2987 [0.2600, 0.3385] | 15% of sentences | 0.994 | 6.8 |
+| obf_all | gate_mlp | 0.591 [0.563, 0.617] | 0.2862 [0.2552, 0.3172] | 16% of sentences | 0.996 | 6.8 |
+| rare | gate_mlp | 0.770 [0.740, 0.798] | 0.1617 [0.1316, 0.1937] | 15% of sentences | 0.995 | 6.8 |
+| clean | gate_oracle | 0.797 [0.774, 0.819] | 0.1554 [0.1281, 0.1841] | 55% of sentences | 1.000 | – |
+| context_only | gate_oracle | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0% of sentences | 1.000 | – |
+| cross_de | gate_oracle | 0.598 [0.564, 0.631] | 0.2983 [0.2597, 0.3385] | 53% of sentences | 1.000 | – |
+| obf_all | gate_oracle | 0.595 [0.567, 0.621] | 0.2830 [0.2520, 0.3141] | 48% of sentences | 1.000 | – |
+| rare | gate_oracle | 0.780 [0.751, 0.808] | 0.1512 [0.1222, 0.1818] | 46% of sentences | 1.000 | – |
+| clean | gate_vqc | 0.788 [0.765, 0.811] | 0.1577 [0.1305, 0.1866] | 17% of sentences | 0.996 | 11.2 |
+| context_only | gate_vqc | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0% of sentences | 1.000 | 11.2 |
+| cross_de | gate_vqc | 0.581 [0.547, 0.614] | 0.2983 [0.2597, 0.3385] | 14% of sentences | 1.000 | 11.2 |
+| obf_all | gate_vqc | 0.591 [0.564, 0.618] | 0.2845 [0.2534, 0.3155] | 15% of sentences | 0.997 | 11.2 |
+| rare | gate_vqc | 0.774 [0.745, 0.802] | 0.1546 [0.1257, 0.1851] | 14% of sentences | 0.998 | 11.2 |
 | clean | masker_doc | 0.923 [0.908, 0.936] | 0.0124 [0.0073, 0.0180] | – | – | 3.3 |
 | context_only | masker_doc | 0.000 [0.000, 0.000] | 0.9238 [0.9000, 0.9454] | – | – | 3.3 |
 | cross_de | masker_doc | 0.774 [0.750, 0.797] | 0.0224 [0.0167, 0.0289] | – | – | 3.3 |
 | obf_all | masker_doc | 0.710 [0.684, 0.735] | 0.0588 [0.0476, 0.0709] | – | – | 3.3 |
 | rare | masker_doc | 0.880 [0.856, 0.903] | 0.0329 [0.0169, 0.0516] | – | – | 3.3 |
-| clean | masker_sent | 0.789 [0.766, 0.812] | 0.1554 [0.1281, 0.1841] | 0.00 | 1.000 | 4.7 |
-| context_only | masker_sent | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0.00 | 1.000 | 4.7 |
-| cross_de | masker_sent | 0.581 [0.547, 0.614] | 0.2983 [0.2597, 0.3385] | 0.00 | 1.000 | 4.7 |
-| obf_all | masker_sent | 0.591 [0.564, 0.617] | 0.2830 [0.2520, 0.3141] | 0.00 | 1.000 | 4.7 |
-| rare | masker_sent | 0.775 [0.746, 0.803] | 0.1512 [0.1222, 0.1818] | 0.00 | 1.000 | 4.7 |
+| clean | masker_sent | 0.789 [0.766, 0.812] | 0.1554 [0.1281, 0.1841] | 0% of sentences | 1.000 | 4.7 |
+| context_only | masker_sent | 0.000 [0.000, 0.000] | 0.9292 [0.9077, 0.9497] | 0% of sentences | 1.000 | 4.7 |
+| cross_de | masker_sent | 0.581 [0.547, 0.614] | 0.2983 [0.2597, 0.3385] | 0% of sentences | 1.000 | 4.7 |
+| obf_all | masker_sent | 0.591 [0.564, 0.617] | 0.2830 [0.2520, 0.3141] | 0% of sentences | 1.000 | 4.7 |
+| rare | masker_sent | 0.775 [0.746, 0.803] | 0.1512 [0.1222, 0.1818] | 0% of sentences | 1.000 | 4.7 |
 
 ### Paired differences against the baselines
 
 | arm_a | arm_b | set | metric | a − b [95% CI] | p | p_holm |
 |---|---|---|---|---|---|---|
-| gate_logreg | masker_doc | clean | entity_f1 | -0.1350 [-0.1573, -0.1134] | 0.0002 | 0.016 |
-| gate_logreg | masker_doc | clean | char_leak_rate | +0.1496 [+0.1216, +0.1786] | 0.0002 | 0.016 |
+| gate_logreg | masker_doc | clean | entity_f1 | -0.1350 [-0.1573, -0.1134] | 0.0002 | 0.021 |
+| gate_logreg | masker_doc | clean | char_leak_rate | +0.1496 [+0.1216, +0.1786] | 0.0002 | 0.021 |
 | gate_logreg | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_logreg | masker_doc | context_only | char_leak_rate | +0.0053 [+0.0000, +0.0167] | 0.731 | 1 |
-| gate_logreg | masker_doc | cross_de | entity_f1 | -0.1933 [-0.2224, -0.1642] | 0.0002 | 0.016 |
-| gate_logreg | masker_doc | cross_de | char_leak_rate | +0.2759 [+0.2372, +0.3137] | 0.0002 | 0.016 |
-| gate_logreg | masker_doc | obf_all | entity_f1 | -0.1191 [-0.1396, -0.0988] | 0.0002 | 0.016 |
-| gate_logreg | masker_doc | obf_all | char_leak_rate | +0.2278 [+0.1972, +0.2590] | 0.0002 | 0.016 |
-| gate_logreg | masker_doc | rare | entity_f1 | -0.1070 [-0.1354, -0.0796] | 0.0002 | 0.016 |
-| gate_logreg | masker_doc | rare | char_leak_rate | +0.1255 [+0.0950, +0.1573] | 0.0002 | 0.016 |
-| gate_minilm_ft | masker_doc | clean | entity_f1 | -0.1331 [-0.1556, -0.1118] | 0.0002 | 0.016 |
-| gate_minilm_ft | masker_doc | clean | char_leak_rate | +0.1462 [+0.1183, +0.1750] | 0.0002 | 0.016 |
+| gate_logreg | masker_doc | cross_de | entity_f1 | -0.1933 [-0.2224, -0.1642] | 0.0002 | 0.021 |
+| gate_logreg | masker_doc | cross_de | char_leak_rate | +0.2759 [+0.2372, +0.3137] | 0.0002 | 0.021 |
+| gate_logreg | masker_doc | obf_all | entity_f1 | -0.1191 [-0.1396, -0.0988] | 0.0002 | 0.021 |
+| gate_logreg | masker_doc | obf_all | char_leak_rate | +0.2278 [+0.1972, +0.2590] | 0.0002 | 0.021 |
+| gate_logreg | masker_doc | rare | entity_f1 | -0.1070 [-0.1354, -0.0796] | 0.0002 | 0.021 |
+| gate_logreg | masker_doc | rare | char_leak_rate | +0.1255 [+0.0950, +0.1573] | 0.0002 | 0.021 |
+| gate_minilm_ft | masker_doc | clean | entity_f1 | -0.1331 [-0.1556, -0.1118] | 0.0002 | 0.021 |
+| gate_minilm_ft | masker_doc | clean | char_leak_rate | +0.1462 [+0.1183, +0.1750] | 0.0002 | 0.021 |
 | gate_minilm_ft | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_minilm_ft | masker_doc | context_only | char_leak_rate | +0.0053 [+0.0000, +0.0167] | 0.731 | 1 |
-| gate_minilm_ft | masker_doc | cross_de | entity_f1 | -0.1922 [-0.2215, -0.1631] | 0.0002 | 0.016 |
-| gate_minilm_ft | masker_doc | cross_de | char_leak_rate | +0.2761 [+0.2375, +0.3137] | 0.0002 | 0.016 |
-| gate_minilm_ft | masker_doc | obf_all | entity_f1 | -0.1184 [-0.1391, -0.0979] | 0.0002 | 0.016 |
-| gate_minilm_ft | masker_doc | obf_all | char_leak_rate | +0.2252 [+0.1949, +0.2565] | 0.0002 | 0.016 |
-| gate_minilm_ft | masker_doc | rare | entity_f1 | -0.1051 [-0.1333, -0.0778] | 0.0002 | 0.016 |
-| gate_minilm_ft | masker_doc | rare | char_leak_rate | +0.1194 [+0.0890, +0.1513] | 0.0002 | 0.016 |
-| gate_mlp | masker_doc | clean | entity_f1 | -0.1355 [-0.1575, -0.1141] | 0.0002 | 0.016 |
-| gate_mlp | masker_doc | clean | char_leak_rate | +0.1461 [+0.1181, +0.1749] | 0.0002 | 0.016 |
+| gate_minilm_ft | masker_doc | cross_de | entity_f1 | -0.1922 [-0.2215, -0.1631] | 0.0002 | 0.021 |
+| gate_minilm_ft | masker_doc | cross_de | char_leak_rate | +0.2761 [+0.2375, +0.3137] | 0.0002 | 0.021 |
+| gate_minilm_ft | masker_doc | obf_all | entity_f1 | -0.1184 [-0.1391, -0.0979] | 0.0002 | 0.021 |
+| gate_minilm_ft | masker_doc | obf_all | char_leak_rate | +0.2252 [+0.1949, +0.2565] | 0.0002 | 0.021 |
+| gate_minilm_ft | masker_doc | rare | entity_f1 | -0.1051 [-0.1333, -0.0778] | 0.0002 | 0.021 |
+| gate_minilm_ft | masker_doc | rare | char_leak_rate | +0.1194 [+0.0890, +0.1513] | 0.0002 | 0.021 |
+| gate_mlp | masker_doc | clean | entity_f1 | -0.1355 [-0.1575, -0.1141] | 0.0002 | 0.021 |
+| gate_mlp | masker_doc | clean | char_leak_rate | +0.1461 [+0.1181, +0.1749] | 0.0002 | 0.021 |
 | gate_mlp | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_mlp | masker_doc | context_only | char_leak_rate | +0.0053 [+0.0000, +0.0167] | 0.731 | 1 |
-| gate_mlp | masker_doc | cross_de | entity_f1 | -0.1936 [-0.2226, -0.1645] | 0.0002 | 0.016 |
-| gate_mlp | masker_doc | cross_de | char_leak_rate | +0.2763 [+0.2376, +0.3140] | 0.0002 | 0.016 |
-| gate_mlp | masker_doc | obf_all | entity_f1 | -0.1188 [-0.1393, -0.0986] | 0.0002 | 0.016 |
-| gate_mlp | masker_doc | obf_all | char_leak_rate | +0.2274 [+0.1969, +0.2586] | 0.0002 | 0.016 |
-| gate_mlp | masker_doc | rare | entity_f1 | -0.1100 [-0.1386, -0.0824] | 0.0002 | 0.016 |
-| gate_mlp | masker_doc | rare | char_leak_rate | +0.1288 [+0.0984, +0.1607] | 0.0002 | 0.016 |
-| gate_oracle | masker_doc | clean | entity_f1 | -0.1258 [-0.1483, -0.1039] | 0.0002 | 0.016 |
-| gate_oracle | masker_doc | clean | char_leak_rate | +0.1430 [+0.1150, +0.1716] | 0.0002 | 0.016 |
+| gate_mlp | masker_doc | cross_de | entity_f1 | -0.1936 [-0.2226, -0.1645] | 0.0002 | 0.021 |
+| gate_mlp | masker_doc | cross_de | char_leak_rate | +0.2763 [+0.2376, +0.3140] | 0.0002 | 0.021 |
+| gate_mlp | masker_doc | obf_all | entity_f1 | -0.1188 [-0.1393, -0.0986] | 0.0002 | 0.021 |
+| gate_mlp | masker_doc | obf_all | char_leak_rate | +0.2274 [+0.1969, +0.2586] | 0.0002 | 0.021 |
+| gate_mlp | masker_doc | rare | entity_f1 | -0.1100 [-0.1386, -0.0824] | 0.0002 | 0.021 |
+| gate_mlp | masker_doc | rare | char_leak_rate | +0.1288 [+0.0984, +0.1607] | 0.0002 | 0.021 |
+| gate_oracle | masker_doc | clean | entity_f1 | -0.1258 [-0.1483, -0.1039] | 0.0002 | 0.021 |
+| gate_oracle | masker_doc | clean | char_leak_rate | +0.1430 [+0.1150, +0.1716] | 0.0002 | 0.021 |
 | gate_oracle | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_oracle | masker_doc | context_only | char_leak_rate | +0.0053 [+0.0000, +0.0167] | 0.731 | 1 |
-| gate_oracle | masker_doc | cross_de | entity_f1 | -0.1767 [-0.2070, -0.1469] | 0.0002 | 0.016 |
-| gate_oracle | masker_doc | cross_de | char_leak_rate | +0.2759 [+0.2372, +0.3137] | 0.0002 | 0.016 |
-| gate_oracle | masker_doc | obf_all | entity_f1 | -0.1151 [-0.1358, -0.0947] | 0.0002 | 0.016 |
-| gate_oracle | masker_doc | obf_all | char_leak_rate | +0.2242 [+0.1939, +0.2556] | 0.0002 | 0.016 |
-| gate_oracle | masker_doc | rare | entity_f1 | -0.1000 [-0.1283, -0.0724] | 0.0002 | 0.016 |
-| gate_oracle | masker_doc | rare | char_leak_rate | +0.1183 [+0.0882, +0.1499] | 0.0002 | 0.016 |
-| gate_vqc | masker_doc | clean | entity_f1 | -0.1348 [-0.1573, -0.1136] | 0.0002 | 0.016 |
-| gate_vqc | masker_doc | clean | char_leak_rate | +0.1453 [+0.1173, +0.1746] | 0.0002 | 0.016 |
+| gate_oracle | masker_doc | cross_de | entity_f1 | -0.1767 [-0.2070, -0.1469] | 0.0002 | 0.021 |
+| gate_oracle | masker_doc | cross_de | char_leak_rate | +0.2759 [+0.2372, +0.3137] | 0.0002 | 0.021 |
+| gate_oracle | masker_doc | obf_all | entity_f1 | -0.1151 [-0.1358, -0.0947] | 0.0002 | 0.021 |
+| gate_oracle | masker_doc | obf_all | char_leak_rate | +0.2242 [+0.1939, +0.2556] | 0.0002 | 0.021 |
+| gate_oracle | masker_doc | rare | entity_f1 | -0.1000 [-0.1283, -0.0724] | 0.0002 | 0.021 |
+| gate_oracle | masker_doc | rare | char_leak_rate | +0.1183 [+0.0882, +0.1499] | 0.0002 | 0.021 |
+| gate_vqc | masker_doc | clean | entity_f1 | -0.1348 [-0.1573, -0.1136] | 0.0002 | 0.021 |
+| gate_vqc | masker_doc | clean | char_leak_rate | +0.1453 [+0.1173, +0.1746] | 0.0002 | 0.021 |
 | gate_vqc | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_vqc | masker_doc | context_only | char_leak_rate | +0.0053 [+0.0000, +0.0167] | 0.731 | 1 |
-| gate_vqc | masker_doc | cross_de | entity_f1 | -0.1933 [-0.2224, -0.1642] | 0.0002 | 0.016 |
-| gate_vqc | masker_doc | cross_de | char_leak_rate | +0.2759 [+0.2372, +0.3137] | 0.0002 | 0.016 |
-| gate_vqc | masker_doc | obf_all | entity_f1 | -0.1181 [-0.1385, -0.0978] | 0.0002 | 0.016 |
-| gate_vqc | masker_doc | obf_all | char_leak_rate | +0.2258 [+0.1953, +0.2570] | 0.0002 | 0.016 |
-| gate_vqc | masker_doc | rare | entity_f1 | -0.1058 [-0.1339, -0.0783] | 0.0002 | 0.016 |
-| gate_vqc | masker_doc | rare | char_leak_rate | +0.1217 [+0.0917, +0.1533] | 0.0002 | 0.016 |
+| gate_vqc | masker_doc | cross_de | entity_f1 | -0.1933 [-0.2224, -0.1642] | 0.0002 | 0.021 |
+| gate_vqc | masker_doc | cross_de | char_leak_rate | +0.2759 [+0.2372, +0.3137] | 0.0002 | 0.021 |
+| gate_vqc | masker_doc | obf_all | entity_f1 | -0.1181 [-0.1385, -0.0978] | 0.0002 | 0.021 |
+| gate_vqc | masker_doc | obf_all | char_leak_rate | +0.2258 [+0.1953, +0.2570] | 0.0002 | 0.021 |
+| gate_vqc | masker_doc | rare | entity_f1 | -0.1058 [-0.1339, -0.0783] | 0.0002 | 0.021 |
+| gate_vqc | masker_doc | rare | char_leak_rate | +0.1217 [+0.0917, +0.1533] | 0.0002 | 0.021 |
 | gate_logreg | masker_sent | clean | entity_f1 | -0.0012 [-0.0032, +0.0006] | 0.228 | 1 |
-| gate_logreg | masker_sent | clean | char_leak_rate | +0.0066 [+0.0027, +0.0117] | 0.0002 | 0.016 |
+| gate_logreg | masker_sent | clean | char_leak_rate | +0.0066 [+0.0027, +0.0117] | 0.0002 | 0.021 |
 | gate_logreg | masker_sent | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_logreg | masker_sent | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_logreg | masker_sent | cross_de | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_logreg | masker_sent | cross_de | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_logreg | masker_sent | obf_all | entity_f1 | -0.0005 [-0.0022, +0.0009] | 0.563 | 1 |
-| gate_logreg | masker_sent | obf_all | char_leak_rate | +0.0036 [+0.0012, +0.0065] | 0.0004 | 0.0228 |
+| gate_logreg | masker_sent | obf_all | char_leak_rate | +0.0036 [+0.0012, +0.0065] | 0.0004 | 0.0328 |
 | gate_logreg | masker_sent | rare | entity_f1 | -0.0026 [-0.0063, +0.0004] | 0.0868 | 1 |
-| gate_logreg | masker_sent | rare | char_leak_rate | +0.0071 [+0.0027, +0.0129] | 0.0012 | 0.0636 |
+| gate_logreg | masker_sent | rare | char_leak_rate | +0.0071 [+0.0027, +0.0129] | 0.0012 | 0.0936 |
 | gate_minilm_ft | masker_sent | clean | entity_f1 | +0.0007 [-0.0008, +0.0022] | 0.336 | 1 |
-| gate_minilm_ft | masker_sent | clean | char_leak_rate | +0.0032 [+0.0010, +0.0061] | 0.0004 | 0.0228 |
+| gate_minilm_ft | masker_sent | clean | char_leak_rate | +0.0032 [+0.0010, +0.0061] | 0.0004 | 0.0328 |
 | gate_minilm_ft | masker_sent | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_minilm_ft | masker_sent | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
-| gate_minilm_ft | masker_sent | cross_de | entity_f1 | +0.0011 [+0.0002, +0.0023] | 0.016 | 0.816 |
+| gate_minilm_ft | masker_sent | cross_de | entity_f1 | +0.0011 [+0.0002, +0.0023] | 0.016 | 1 |
 | gate_minilm_ft | masker_sent | cross_de | char_leak_rate | +0.0001 [+0.0000, +0.0004] | 0.72 | 1 |
 | gate_minilm_ft | masker_sent | obf_all | entity_f1 | +0.0002 [-0.0008, +0.0011] | 0.689 | 1 |
-| gate_minilm_ft | masker_sent | obf_all | char_leak_rate | +0.0010 [+0.0003, +0.0021] | 0.0004 | 0.0228 |
+| gate_minilm_ft | masker_sent | obf_all | char_leak_rate | +0.0010 [+0.0003, +0.0021] | 0.0004 | 0.0328 |
 | gate_minilm_ft | masker_sent | rare | entity_f1 | -0.0007 [-0.0022, +0.0000] | 0.727 | 1 |
 | gate_minilm_ft | masker_sent | rare | char_leak_rate | +0.0010 [+0.0000, +0.0030] | 0.27 | 1 |
-| gate_mlp | masker_sent | clean | entity_f1 | -0.0016 [-0.0032, -0.0004] | 0.0068 | 0.367 |
-| gate_mlp | masker_sent | clean | char_leak_rate | +0.0031 [+0.0011, +0.0056] | 0.0004 | 0.0228 |
+| gate_mlp | masker_sent | clean | entity_f1 | -0.0016 [-0.0032, -0.0004] | 0.0068 | 0.53 |
+| gate_mlp | masker_sent | clean | char_leak_rate | +0.0031 [+0.0011, +0.0056] | 0.0004 | 0.0328 |
 | gate_mlp | masker_sent | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_mlp | masker_sent | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_mlp | masker_sent | cross_de | entity_f1 | -0.0002 [-0.0007, +0.0000] | 0.732 | 1 |
 | gate_mlp | masker_sent | cross_de | char_leak_rate | +0.0004 [+0.0000, +0.0011] | 0.732 | 1 |
 | gate_mlp | masker_sent | obf_all | entity_f1 | -0.0003 [-0.0019, +0.0011] | 0.77 | 1 |
-| gate_mlp | masker_sent | obf_all | char_leak_rate | +0.0032 [+0.0012, +0.0057] | 0.0002 | 0.016 |
-| gate_mlp | masker_sent | rare | entity_f1 | -0.0056 [-0.0100, -0.0021] | 0.0002 | 0.016 |
-| gate_mlp | masker_sent | rare | char_leak_rate | +0.0105 [+0.0042, +0.0183] | 0.0002 | 0.016 |
-| gate_oracle | masker_sent | clean | entity_f1 | +0.0080 [+0.0046, +0.0123] | 0.0002 | 0.016 |
+| gate_mlp | masker_sent | obf_all | char_leak_rate | +0.0032 [+0.0012, +0.0057] | 0.0002 | 0.021 |
+| gate_mlp | masker_sent | rare | entity_f1 | -0.0056 [-0.0100, -0.0021] | 0.0002 | 0.021 |
+| gate_mlp | masker_sent | rare | char_leak_rate | +0.0105 [+0.0042, +0.0183] | 0.0002 | 0.021 |
+| gate_oracle | masker_sent | clean | entity_f1 | +0.0080 [+0.0046, +0.0123] | 0.0002 | 0.021 |
 | gate_oracle | masker_sent | clean | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_oracle | masker_sent | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_oracle | masker_sent | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
-| gate_oracle | masker_sent | cross_de | entity_f1 | +0.0167 [+0.0113, +0.0233] | 0.0002 | 0.016 |
+| gate_oracle | masker_sent | cross_de | entity_f1 | +0.0167 [+0.0113, +0.0233] | 0.0002 | 0.021 |
 | gate_oracle | masker_sent | cross_de | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
-| gate_oracle | masker_sent | obf_all | entity_f1 | +0.0035 [+0.0022, +0.0051] | 0.0002 | 0.016 |
+| gate_oracle | masker_sent | obf_all | entity_f1 | +0.0035 [+0.0022, +0.0051] | 0.0002 | 0.021 |
 | gate_oracle | masker_sent | obf_all | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
-| gate_oracle | masker_sent | rare | entity_f1 | +0.0044 [+0.0016, +0.0083] | 0.0002 | 0.016 |
+| gate_oracle | masker_sent | rare | entity_f1 | +0.0044 [+0.0016, +0.0083] | 0.0002 | 0.021 |
 | gate_oracle | masker_sent | rare | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_vqc | masker_sent | clean | entity_f1 | -0.0010 [-0.0027, +0.0002] | 0.134 | 1 |
-| gate_vqc | masker_sent | clean | char_leak_rate | +0.0023 [+0.0007, +0.0045] | 0.0012 | 0.0636 |
+| gate_vqc | masker_sent | clean | char_leak_rate | +0.0023 [+0.0007, +0.0045] | 0.0012 | 0.0936 |
 | gate_vqc | masker_sent | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_vqc | masker_sent | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_vqc | masker_sent | cross_de | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_vqc | masker_sent | cross_de | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 | gate_vqc | masker_sent | obf_all | entity_f1 | +0.0005 [-0.0002, +0.0013] | 0.146 | 1 |
-| gate_vqc | masker_sent | obf_all | char_leak_rate | +0.0016 [+0.0003, +0.0032] | 0.0052 | 0.255 |
+| gate_vqc | masker_sent | obf_all | char_leak_rate | +0.0016 [+0.0003, +0.0032] | 0.0052 | 0.385 |
 | gate_vqc | masker_sent | rare | entity_f1 | -0.0014 [-0.0036, +0.0000] | 0.256 | 1 |
 | gate_vqc | masker_sent | rare | char_leak_rate | +0.0033 [+0.0000, +0.0084] | 0.0936 | 1 |
+| docgate_logreg | masker_doc | clean | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | clean | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | cross_de | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | cross_de | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | obf_all | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | obf_all | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | rare | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_logreg | masker_doc | rare | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_minilm_ft | masker_doc | clean | entity_f1 | +0.0001 [-0.0004, +0.0006] | 0.794 | 1 |
+| docgate_minilm_ft | masker_doc | clean | char_leak_rate | +0.0008 [+0.0000, +0.0026] | 0.727 | 1 |
+| docgate_minilm_ft | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_minilm_ft | masker_doc | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_minilm_ft | masker_doc | cross_de | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_minilm_ft | masker_doc | cross_de | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_minilm_ft | masker_doc | obf_all | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_minilm_ft | masker_doc | obf_all | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_minilm_ft | masker_doc | rare | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_minilm_ft | masker_doc | rare | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | clean | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | clean | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | cross_de | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | cross_de | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | obf_all | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | obf_all | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_mlp | masker_doc | rare | entity_f1 | -0.0006 [-0.0019, +0.0000] | 0.741 | 1 |
+| docgate_mlp | masker_doc | rare | char_leak_rate | +0.0009 [+0.0000, +0.0029] | 0.741 | 1 |
+| docgate_oracle | masker_doc | clean | entity_f1 | +0.0023 [+0.0003, +0.0052] | 0.0076 | 0.578 |
+| docgate_oracle | masker_doc | clean | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_oracle | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_oracle | masker_doc | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_oracle | masker_doc | cross_de | entity_f1 | +0.0047 [+0.0002, +0.0120] | 0.006 | 0.474 |
+| docgate_oracle | masker_doc | cross_de | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_oracle | masker_doc | obf_all | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_oracle | masker_doc | obf_all | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_oracle | masker_doc | rare | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_oracle | masker_doc | rare | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | clean | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | clean | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | context_only | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | context_only | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | cross_de | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | cross_de | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | obf_all | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | obf_all | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | rare | entity_f1 | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
+| docgate_vqc | masker_doc | rare | char_leak_rate | +0.0000 [+0.0000, +0.0000] | 1 | 1 |
 
 
 ![pipeline trade-off](figures/pipeline_tradeoff.png)

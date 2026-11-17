@@ -562,6 +562,15 @@ def masker_section(res: Path, fig_dir: Path) -> tuple[str, list[str]]:
 
 
 # ---------------------------------------------------------------------------------- pipeline
+def skip_text(r: pd.Series) -> str:
+    """What the gate skipped, with its unit (sentences for ``gate_*``, documents for ``docgate_*``)."""
+    if "skipped_fraction" in r and not pd.isna(r["skipped_fraction"]):
+        return f"{r['skipped_fraction']:.0%} of sentences"
+    if "docs_skipped_fraction" in r and not pd.isna(r["docs_skipped_fraction"]):
+        return f"{r['docs_skipped_fraction']:.1%} of documents"
+    return "–"
+
+
 def pipeline_section(res: Path, fig_dir: Path) -> tuple[str, list[str]]:
     p = res / "eval" / "pipeline_ci.csv"
     if not p.exists():
@@ -586,9 +595,7 @@ def pipeline_section(res: Path, fig_dir: Path) -> tuple[str, list[str]]:
                 "arm": r.arm,
                 "F1 [95% CI]": ci_str(r, "entity_f1"),
                 "char leak [95% CI]": ci_str(r, "char_leak_rate", 4),
-                "sentences skipped": "–"
-                if pd.isna(s.skipped_fraction)
-                else f"{s.skipped_fraction:.2f}",
+                "skipped by gate": skip_text(s),
                 "gate recall": "–" if pd.isna(s.gate_recall) else f"{s.gate_recall:.3f}",
                 "latency p50 ms": "–" if pd.isna(s.latency_ms_p50) else f"{s.latency_ms_p50:.1f}",
             }
@@ -616,6 +623,12 @@ def pipeline_section(res: Path, fig_dir: Path) -> tuple[str, list[str]]:
         bits.append(
             f"Pipeline (clean): masker on whole documents leaks {clean.loc['masker_doc'].char_leak_rate:.4f}; "
             f"on sentences {clean.loc['masker_sent'].char_leak_rate:.4f}."
+        )
+    for g in [a for a in clean.index if a.startswith("docgate_") and a != "docgate_oracle"]:
+        bits.append(
+            f"Pipeline (clean) {g} (whole-document masking, gate may skip a document): leak "
+            f"{clean.loc[g].char_leak_rate:.4f}, skips {clean.loc[g].docs_skipped_fraction:.1%} of documents, "
+            f"latency p50 {clean.loc[g].latency_ms_p50:.1f} ms."
         )
     for g in [a for a in clean.index if a.startswith("gate_") and a != "gate_oracle"]:
         bits.append(
@@ -819,9 +832,7 @@ def readme_block(res: Path, bits: list[str]) -> str:
                 "arm": a,
                 "F1": f"{r.entity_f1:.3f}",
                 "leak %": f"{100 * r.char_leak_rate:.2f}",
-                "sentences skipped": "–"
-                if pd.isna(r.skipped_fraction)
-                else f"{r.skipped_fraction:.2f}",
+                "skipped by gate": skip_text(r),
                 "latency p50 ms": "–" if pd.isna(r.latency_ms_p50) else f"{r.latency_ms_p50:.1f}",
             }
             for a, r in ps.iterrows()

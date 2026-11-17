@@ -56,6 +56,16 @@ def run_set(
     arms["masker_sent"] = _assemble(offs, all_sent_spans, np.ones(len(sent_texts), bool), bounds)
     for g, f in flags.items():
         arms[f"gate_{g}"] = _assemble(offs, all_sent_spans, f, bounds)
+    docs_skipped: dict[str, float] = {}
+    for (
+        g,
+        f,
+    ) in flags.items():  # document-level gate: skip the masker only if NO sentence is flagged
+        keep = np.array([f[bounds[i] : bounds[i + 1]].any() for i in range(len(docs))])
+        arms[f"docgate_{g}"] = [
+            p if k else [] for p, k in zip(arms["masker_doc"], keep, strict=True)
+        ]
+        docs_skipped[f"docgate_{g}"] = float(1.0 - keep.mean())
 
     for arm, preds in arms.items():
         counts = counts_frame(texts, golds, preds, s["eval_labels"])
@@ -65,6 +75,8 @@ def run_set(
         m.update({"kind": "pipeline_eval", "arm": arm, "set": name})
         if arm.startswith("gate_"):
             m.update(gate_sentence_stats(sent_y, flags[arm.removeprefix("gate_")]))
+        elif arm.startswith("docgate_"):
+            m["docs_skipped_fraction"] = docs_skipped[arm]
         elif arm == "masker_sent":
             m.update(gate_sentence_stats(sent_y, np.ones(len(sent_y), bool)))
         write_run_record(out, f"pipeline__{arm}__{name}", config=cfg, seed=seed, metrics=m)
@@ -135,6 +147,17 @@ def measure_latency(
     }
     for g in gates.models:
         rows[f"gate_{g}"] = timed(via_gate(g))
+
+    def via_docgate(g: str) -> Any:
+        def fn(text: str) -> None:
+            sents = [text[a:b] for a, b in split_sentences(text)]
+            if (gates.score(g, sents) >= gates.thresholds[g]).any():
+                masker.predict([text])
+
+        return fn
+
+    for g in gates.models:
+        rows[f"docgate_{g}"] = timed(via_docgate(g))
     for arm, r in rows.items():
         write_run_record(
             out,
@@ -162,6 +185,7 @@ def main() -> None:
         set_seed(seed)
         t0 = time.perf_counter()
         gates = Gates(cfg, seed).fit()
+        gates.save(Path(cfg["paths"]["ckpt_dir"]) / "gates")
         write_run_record(
             out,
             "pipeline__gates",

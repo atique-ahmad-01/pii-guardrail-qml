@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 from typing import Any
 
+import joblib
 import numpy as np
+import torch
 
 from piiguard.gate import classical
 from piiguard.gate.features import AngleScaler, balanced_subset, load_gate_frames
+from piiguard.gate.finetune import MiniLMClassifier, train_minilm
 from piiguard.gate.finetune import predict as minilm_predict
-from piiguard.gate.finetune import train_minilm
 from piiguard.gate.gate_metrics import gate_metrics
 from piiguard.gate.vqc import VQC
 from piiguard.pipeline.assemble import pick_threshold
-from piiguard.utils import get_device, get_logger, set_seed
+from piiguard.utils import ensure_dir, get_device, get_logger, set_seed
 
 log = get_logger("pipeline.gates")
 
@@ -133,3 +137,83 @@ class Gates:
     def flags(self, scores: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         """Boolean pass/skip decision per gate using the validation-chosen thresholds."""
         return {k: v >= self.thresholds[k] for k, v in scores.items()}
+
+    # ------------------------------------------------------------------ persistence
+    def save(self, out_dir: str | Path) -> Path:
+        """Write every fitted gate and its threshold to ``out_dir`` (reload with ``Gates.load``)."""
+        out = ensure_dir(out_dir)
+        classical = {k: m for k, m in self.models.items() if k in ("logreg", "mlp")}
+        joblib.dump({"scaler": self.scaler, **classical}, out / "classical.joblib")
+        if "vqc" in self.models:
+            v = self.models["vqc"]
+            torch.save(
+                {
+                    "weights": v.weights.detach().cpu(),
+                    "scale": v.scale.detach().cpu(),
+                    "bias": v.bias.detach().cpu(),
+                    "n_qubits": v.n,
+                    "n_layers": v.L,
+                    "seed": v.seed,
+                },
+                out / "vqc.pt",
+            )
+        if "minilm_ft" in self.models:
+            torch.save(self.models["minilm_ft"][0].state_dict(), out / "minilm_gate.pt")
+        meta = {
+            "gates": sorted(self.models),
+            "thresholds": self.thresholds,
+            "embed_model": self.g["embed_model"],
+            "embed_batch_size": self.g["embed_batch_size"],
+            "n_features": self.g["n_features"],
+            "target_recall": self.pc["target_recall"],
+            "info": self.info,
+        }
+        (out / "meta.json").write_text(json.dumps(meta, indent=2))
+        log.info("saved gates to %s", out)
+        return out
+
+    @classmethod
+    def load(cls, in_dir: str | Path, only: list[str] | None = None) -> Gates:
+        """Load gates written by ``save``; ``only`` restricts which gates are loaded.
+
+        The ``.joblib`` file is a pickle: only load files you created yourself.
+        """
+        d = Path(in_dir)
+        meta = json.loads((d / "meta.json").read_text())
+        cfg = {
+            "gate": {
+                "embed_model": meta["embed_model"],
+                "embed_batch_size": meta["embed_batch_size"],
+                "n_features": meta["n_features"],
+            },
+            "pipeline": {"seed": 0, "target_recall": meta["target_recall"]},
+        }
+        g = cls(cfg, 0)
+        want = set(only) if only else set(meta["gates"])
+        sk = joblib.load(d / "classical.joblib")
+        g.scaler = sk["scaler"]
+        for k in ("logreg", "mlp"):
+            if k in want and k in sk:
+                g.models[k] = sk[k]
+        if "vqc" in want and "vqc" in meta["gates"]:
+            state = torch.load(d / "vqc.pt", map_location="cpu")
+            v = VQC(state["n_qubits"], state["n_layers"], seed=state["seed"])
+            with torch.no_grad():
+                v.weights.copy_(state["weights"])
+                v.scale.copy_(state["scale"])
+                v.bias.copy_(state["bias"])
+            g.models["vqc"] = v
+        if "minilm_ft" in want and "minilm_ft" in meta["gates"]:
+            from transformers import AutoTokenizer
+
+            model = MiniLMClassifier(meta["embed_model"]).to(g.device)
+            model.load_state_dict(torch.load(d / "minilm_gate.pt", map_location=g.device))
+            model.eval()
+            g.models["minilm_ft"] = (
+                model,
+                AutoTokenizer.from_pretrained(meta["embed_model"]),
+                g.device,
+            )
+        g.thresholds = {k: v for k, v in meta["thresholds"].items() if k in g.models}
+        g.info = meta["info"]
+        return g

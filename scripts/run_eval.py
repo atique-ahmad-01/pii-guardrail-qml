@@ -123,6 +123,7 @@ def main() -> None:
             for a in arms
             if a.startswith("gate_") and a != base
         ]
+        pairs += [(a, "masker_doc") for a in arms if a.startswith("docgate_")]
         pairs += list(
             itertools.combinations(
                 [a for a in arms if a.startswith("gate_") and a != "gate_oracle"], 2

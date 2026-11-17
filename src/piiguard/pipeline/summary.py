@@ -16,6 +16,7 @@ COLS = [
     "gate_recall",
     "gate_precision",
     "skipped_fraction",
+    "docs_skipped_fraction",
     "n_docs",
 ]
 

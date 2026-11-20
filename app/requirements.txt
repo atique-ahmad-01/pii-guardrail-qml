@@ -1,2 +1,19 @@
-# Extra dependency for the Streamlit app only. The models themselves come from the main project.
+# Everything the Streamlit app needs (also used by Streamlit Community Cloud, which reads this file).
+# CPU-only PyTorch keeps the cloud install small.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu ; sys_platform == "linux"
+torch ; sys_platform != "linux"
+numpy<2 ; sys_platform == "darwin" and platform_machine == "x86_64"
+transformers==4.49.0
+sentence-transformers>=3.0,<6
+peft>=0.12
+scikit-learn==1.9.1
+joblib
+pennylane==0.44.1
+seqeval>=1.2.2
+pandas>=2.1
+pyyaml>=6.0
+sentencepiece==0.2.0
+protobuf
+huggingface_hub
 streamlit>=1.40

@@ -16,7 +16,10 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
+import urllib.request
+import zipfile
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -126,6 +129,31 @@ def checkpoints_dir() -> Path:
     ap.add_argument("--checkpoints", default=None)
     args, _ = ap.parse_known_args()
     return Path(args.checkpoints or os.environ.get("PIIGUARD_CHECKPOINTS") or REPO / "checkpoints")
+
+
+RELEASE = "https://github.com/atique-ahmad-01/pii-guardrail-qml/releases/download/weights-v1/"
+DEFAULT_ZIPS = ("pii-guardrail-deberta.zip", "pii-guardrail-gates.zip")
+
+
+@st.cache_resource(show_spinner=False)
+def download_weights(root: str) -> bool:
+    """Fetch DeBERTa and the gates from the GitHub release into ``root`` (once per server)."""
+    target = Path(root)
+    if target.name != "checkpoints":  # the zips hold paths that start with checkpoints/
+        return False
+    with st.status("Downloading the trained models (first start only, about 600 MB)...") as box:
+        for name in DEFAULT_ZIPS:
+            box.write(f"⬇️ {name}")
+            with tempfile.TemporaryDirectory() as tmp:
+                zpath = Path(tmp) / name
+                urllib.request.urlretrieve(RELEASE + name, zpath)
+                with zipfile.ZipFile(zpath) as z:
+                    members = [m for m in z.namelist() if m.startswith("checkpoints/")]
+                    if any(".." in Path(m).parts for m in members):
+                        raise ValueError(f"unsafe path in {name}")
+                    z.extractall(target.parent, members=members)
+        box.update(label="Models ready", state="complete")
+    return True
 
 
 def model_key(folder: str) -> str:
@@ -506,6 +534,13 @@ def main() -> None:
     gates_dir, gates = find_gates(root)
 
     hero()
+    if not maskers:
+        try:
+            if download_weights(str(root)):
+                maskers = find_maskers(root)
+                gates_dir, gates = find_gates(root)
+        except Exception as e:  # network or disk problem: explain instead of crashing
+            st.warning(f"Could not download the trained models: {e}")
     if not maskers:
         st.error(
             f"No trained models found in `{root / 'masker'}`. Download them (see the README) "

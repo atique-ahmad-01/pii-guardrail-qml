@@ -25,20 +25,17 @@ Options: `streamlit run app/streamlit_app.py -- --checkpoints <dir>` or set
 
 ## What you can do
 
+![demo](../docs/demo.gif)
+
 | Tab | Purpose |
 |---|---|
-| 🛡️ **Mask text** | Paste text or pick an example, press **Mask**. See the PII highlighted by type, the masked output (copy or download), every span, and the gate's score for each sentence. |
-| ⚖️ **Compare maskers** | Run several maskers on the same text side by side, with latency and the number of spans each one found. |
-| 📊 **Model scores** | Test-set F1 and leak rate for each masker (clean, disguised, rare, German) and ROC-AUC and latency for each gate, read from `results/`. |
-| ℹ️ **How it works** | The two stages, the three modes, and what the scores mean. |
+| 🛡️ **Try it** | Pick an example or paste text, press **Hide personal data**. See what was found (coloured by type), the safe text, and download or copy it. |
+| 📊 **Results** | Test-set F1 and leak rate for each masker, and ROC-AUC and speed for each gate, read from `results/`. |
+| ⚙️ **How it works** | The steps, what the colours mean, and the limits. |
 
-In the sidebar you choose each stage independently:
+**⚙️ Settings** (next to the button) lets you pick the model (DeBERTa, Qwen + LoRA, SmolLM2 + LoRA), an optional gate (classical, quantum circuit or MiniLM) and the mode. The defaults (DeBERTa, no gate, whole text) are the safest and fastest.
 
-- **Masker** (finds and hides PII): DeBERTa-v3-small, Qwen2.5-0.5B + LoRA, SmolLM2-360M + LoRA.
-- **Gate** (quick "is there PII?" check): none, logistic regression, MLP, quantum circuit (VQC,
-  simulated), fine-tuned MiniLM.
-- **Mode**: *Whole text* (safest, default), *Gate, then whole text* (skips text the gate thinks is
-  clean), *Flagged sentences only* (fastest, but measured to leak much more).
+The theme lives in `.streamlit/config.toml` at the repository root.
 
 ## Models
 

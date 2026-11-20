@@ -17,6 +17,12 @@ A fast gate (classical vs simulated quantum) plus a trained masker (DeBERTa, Qwe
 
 </div>
 
+<p align="center">
+  <img src="docs/demo.gif" alt="PII Guardrail app: pick an example, see the personal data found and the safe text" width="900" />
+  <br />
+  <sub>The Streamlit app running the trained DeBERTa model locally. Every result is real model output.</sub>
+</p>
+
 ---
 
 ## 🔎 Example

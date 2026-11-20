@@ -1,0 +1,2 @@
+# Extra dependency for the Streamlit app only. The models themselves come from the main project.
+streamlit>=1.40

@@ -22,7 +22,9 @@ from piiguard.utils import load_config
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument(
-        "--masker", required=True, help="DeBERTa folder (.../best) or LoRA adapter folder"
+        "--masker",
+        required=True,
+        help="masker folder, e.g. checkpoints/masker/001_deberta",
     )
     ap.add_argument("--config", default="configs/full.yaml")
     ap.add_argument("--sets", nargs="+", default=["clean"])

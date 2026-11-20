@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import time
 from pathlib import Path
@@ -21,6 +22,17 @@ from piiguard.pipeline.assemble import pick_threshold
 from piiguard.utils import ensure_dir, get_device, get_logger, set_seed
 
 log = get_logger("pipeline.gates")
+
+# Folder order in the split layout: classical, quantum, then the fine-tuned reference model.
+GATE_ORDER = ("logreg", "mlp", "vqc", "minilm_ft")
+SPLIT_LAYOUT = """
+gate/
+├── shared/            meta.json (thresholds), feature_scaler.joblib (PCA + scaling), encoder/
+├── 001_logreg/        model.joblib
+├── 002_mlp/           model.joblib
+├── 003_vqc/           model.pt
+└── 004_minilm_ft/     model.pt
+"""
 
 
 class Gates:
@@ -142,7 +154,10 @@ class Gates:
     def save(self, out_dir: str | Path) -> Path:
         """Write every fitted gate and its threshold to ``out_dir`` (reload with ``Gates.load``)."""
         out = ensure_dir(out_dir)
-        classical = {k: m for k, m in self.models.items() if k in ("logreg", "mlp")}
+        classical = {k: copy.copy(m) for k, m in self.models.items() if k in ("logreg", "mlp")}
+        for m in classical.values():  # training-only RNG; its pickle is numpy-version specific
+            if hasattr(m, "_random_state"):
+                m._random_state = None
         joblib.dump({"scaler": self.scaler, **classical}, out / "classical.joblib")
         if "vqc" in self.models:
             v = self.models["vqc"]
@@ -172,14 +187,70 @@ class Gates:
         log.info("saved gates to %s", out)
         return out
 
+    def save_split(self, out_dir: str | Path, encoder_from: str | None = None) -> Path:
+        """Write one subfolder per gate plus ``shared/`` (see ``SPLIT_LAYOUT``).
+
+        ``shared/encoder`` is a copy of the embedding model, so the folder works offline.
+        """
+        from sentence_transformers import SentenceTransformer
+
+        out = ensure_dir(out_dir)
+        shared = ensure_dir(out / "shared")
+        flat = self.save(shared / "_flat")  # reuse the single-folder writer, then split it
+        sk = joblib.load(flat / "classical.joblib")
+        joblib.dump(sk["scaler"], shared / "feature_scaler.joblib")
+        for i, name in enumerate(GATE_ORDER, start=1):
+            if name not in self.models:
+                continue
+            sub = ensure_dir(out / f"{i:03d}_{name}")
+            if name in ("logreg", "mlp"):
+                joblib.dump(sk[name], sub / "model.joblib")
+            else:
+                src = flat / ("vqc.pt" if name == "vqc" else "minilm_gate.pt")
+                src.replace(sub / "model.pt")
+        (flat / "meta.json").replace(shared / "meta.json")
+        for f in flat.iterdir():
+            f.unlink()
+        flat.rmdir()
+        SentenceTransformer(encoder_from or self.g["embed_model"], device="cpu").save(
+            str(shared / "encoder")
+        )
+        log.info("saved gates (split layout) to %s", out)
+        return out
+
+    @staticmethod
+    def _files(d: Path) -> dict[str, Path]:
+        """Where each part lives, for both the single-folder and the split layout."""
+        if (d / "shared" / "meta.json").exists():
+            files = {
+                "meta": d / "shared" / "meta.json",
+                "encoder": d / "shared" / "encoder",
+                "scaler": d / "shared" / "feature_scaler.joblib",
+            }
+            for sub in d.iterdir():
+                name = sub.name.split("_", 1)[-1]
+                if sub.is_dir() and name in GATE_ORDER:
+                    ext = "joblib" if name in ("logreg", "mlp") else "pt"
+                    files[name] = sub / f"model.{ext}"
+            return files
+        return {
+            "meta": d / "meta.json",
+            "encoder": d / "encoder",
+            "classical": d / "classical.joblib",
+            "vqc": d / "vqc.pt",
+            "minilm_ft": d / "minilm_gate.pt",
+        }
+
     @classmethod
     def load(cls, in_dir: str | Path, only: list[str] | None = None) -> Gates:
-        """Load gates written by ``save``; ``only`` restricts which gates are loaded.
+        """Load gates written by ``save`` or ``save_split``; ``only`` limits which are loaded.
 
-        The ``.joblib`` file is a pickle: only load files you created yourself.
+        The ``.joblib`` files are pickles: only load files you created yourself.
         """
-        d = Path(in_dir)
-        meta = json.loads((d / "meta.json").read_text())
+        f = cls._files(Path(in_dir))
+        meta = json.loads(f["meta"].read_text())
+        if (f["encoder"] / "config.json").exists():  # bundled copy of the embedding model
+            meta["embed_model"] = str(f["encoder"])
         cfg = {
             "gate": {
                 "embed_model": meta["embed_model"],
@@ -189,25 +260,31 @@ class Gates:
             "pipeline": {"seed": 0, "target_recall": meta["target_recall"]},
         }
         g = cls(cfg, 0)
-        want = set(only) if only else set(meta["gates"])
-        sk = joblib.load(d / "classical.joblib")
-        g.scaler = sk["scaler"]
-        for k in ("logreg", "mlp"):
-            if k in want and k in sk:
-                g.models[k] = sk[k]
-        if "vqc" in want and "vqc" in meta["gates"]:
-            state = torch.load(d / "vqc.pt", map_location="cpu")
+        want = (set(only) if only else set(meta["gates"])) & set(meta["gates"])
+        if "classical" in f:
+            sk = joblib.load(f["classical"])
+            g.scaler = sk["scaler"]
+            for k in ("logreg", "mlp"):
+                if k in want and k in sk:
+                    g.models[k] = sk[k]
+        else:
+            g.scaler = joblib.load(f["scaler"])
+            for k in ("logreg", "mlp"):
+                if k in want and k in f:
+                    g.models[k] = joblib.load(f[k])
+        if "vqc" in want:
+            state = torch.load(f["vqc"], map_location="cpu")
             v = VQC(state["n_qubits"], state["n_layers"], seed=state["seed"])
             with torch.no_grad():
                 v.weights.copy_(state["weights"])
                 v.scale.copy_(state["scale"])
                 v.bias.copy_(state["bias"])
             g.models["vqc"] = v
-        if "minilm_ft" in want and "minilm_ft" in meta["gates"]:
+        if "minilm_ft" in want:
             from transformers import AutoTokenizer
 
             model = MiniLMClassifier(meta["embed_model"]).to(g.device)
-            model.load_state_dict(torch.load(d / "minilm_gate.pt", map_location=g.device))
+            model.load_state_dict(torch.load(f["minilm_ft"], map_location=g.device))
             model.eval()
             g.models["minilm_ft"] = (
                 model,

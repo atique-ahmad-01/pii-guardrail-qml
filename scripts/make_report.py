@@ -842,16 +842,23 @@ def readme_block(res: Path, bits: list[str]) -> str:
     return "\n".join(out) + "\n"
 
 
+def _rel(p: Path) -> str:
+    """Path relative to the repository root, so reports never show a local home folder."""
+    root = Path(__file__).resolve().parents[1]
+    try:
+        return str(Path(p).resolve().relative_to(root))
+    except ValueError:
+        return Path(p).name
+
+
 def update_readme(block: str) -> None:
-    """Replace the marked results block in README.md (insert it before 'Quick start' if absent)."""
+    """Replace the marked results block in README.md; leave the README alone if it has no markers."""
     readme = Path(__file__).resolve().parents[1] / "README.md"
     text = readme.read_text()
-    if README_START in text and README_END in text:
-        a, b = text.index(README_START), text.index(README_END) + len(README_END)
-        text = text[:a] + block.rstrip("\n") + text[b:]
-    else:
-        text = text.replace("## Quick start", block + "\n## Quick start", 1)
-    readme.write_text(text)
+    if README_START not in text or README_END not in text:
+        return
+    a, b = text.index(README_START), text.index(README_END) + len(README_END)
+    readme.write_text(text[:a] + block.rstrip("\n") + text[b:])
 
 
 def main() -> None:
@@ -870,7 +877,7 @@ def main() -> None:
     text = (
         "# Clean F1 hides leaks: stress-testing small-language-model PII maskers, "
         "with a quantum-vs-classical benchmark for the PII gate\n\n"
-        f"_Generated from `{res}` by `scripts/make_report.py`; every number below is read from "
+        f"_Generated from `{_rel(res)}` by `scripts/make_report.py`; every number below is read from "
         "a results file._\n\n## Key results\n\n"
         + summary
         + "\n\n"

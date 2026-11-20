@@ -1,6 +1,6 @@
 # Clean F1 hides leaks: stress-testing small-language-model PII maskers, with a quantum-vs-classical benchmark for the PII gate
 
-_Generated from `/Users/ebricks/Desktop/pii-guardrail-qml/results/smoke` by `scripts/make_report.py`; every number below is read from a results file._
+_Generated from `results/smoke` by `scripts/make_report.py`; every number below is read from a results file._
 
 ## Key results
 

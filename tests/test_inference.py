@@ -7,7 +7,7 @@ import urllib.request
 import numpy as np
 import pytest
 
-from piiguard.inference import ChunkedEncoderMasker, PiiGuardrail
+from piiguard.inference import ChunkedEncoderMasker, PiiGuardrail, is_causal_lm
 from piiguard.serve import make_server
 
 PII = re.compile(r"\S+@\S+|\d{3}-\d{4}")
@@ -179,3 +179,16 @@ def test_gates_save_and_load_round_trip(tmp_path):
         assert np.allclose(h.models[k].predict_proba(X), g.models[k].predict_proba(X))
     assert np.allclose(h.models["vqc"].predict_proba(X), g.models["vqc"].predict_proba(X))
     assert sorted(Gates.load(tmp_path, only=["logreg"]).models) == ["logreg"]
+
+
+def test_is_causal_lm_tells_merged_llm_from_encoder(tmp_path):
+    llm, enc, empty = tmp_path / "llm", tmp_path / "enc", tmp_path / "empty"
+    for d in (llm, enc, empty):
+        d.mkdir()
+    (llm / "config.json").write_text(json.dumps({"architectures": ["Qwen2ForCausalLM"]}))
+    (enc / "config.json").write_text(
+        json.dumps({"architectures": ["DebertaV2ForTokenClassification"]})
+    )
+    assert is_causal_lm(llm)
+    assert not is_causal_lm(enc)
+    assert not is_causal_lm(empty)

@@ -93,15 +93,27 @@ class ChunkedEncoderMasker:
 
 
 class LLMAdapterMasker:
-    """LoRA language-model masker with the same ``predict(texts)`` interface."""
+    """Language-model masker with the same ``predict(texts)`` interface.
 
-    def __init__(self, base: str, adapter: Path, max_new_tokens: int = 512) -> None:
+    ``base`` + ``adapter`` loads a LoRA adapter; ``adapter=None`` loads a merged full model.
+    """
+
+    def __init__(self, base: str, adapter: Path | None, max_new_tokens: int = 512) -> None:
         from piiguard.masker.llm_infer import LLMMasker
 
         self.m = LLMMasker(base, adapter, max_new_tokens, batch_size=8)
 
     def predict(self, texts: list[str]) -> list[list[dict[str, Any]]]:
         return self.m.predict([build_prompt(t) for t in texts], texts)[0]
+
+
+def is_causal_lm(path: Path) -> bool:
+    """True when ``path`` holds a full (e.g. merged) causal language model."""
+    cfg = Path(path) / "config.json"
+    if not cfg.exists():
+        return False
+    archs = json.loads(cfg.read_text()).get("architectures") or []
+    return any(a.endswith("ForCausalLM") for a in archs)
 
 
 class PiiGuardrail:
@@ -119,11 +131,16 @@ class PiiGuardrail:
         gate: str = "logreg",
         max_length: int = 512,
     ) -> PiiGuardrail:
-        """Load a masker (DeBERTa folder or LoRA adapter folder) and, optionally, saved gates."""
+        """Load a masker and, optionally, saved gates.
+
+        The masker folder can be a DeBERTa model, a LoRA adapter, or a merged full LLM.
+        """
         mp = Path(masker_path)
         if (mp / "adapter_config.json").exists():
             base = json.loads((mp / "adapter_config.json").read_text())["base_model_name_or_path"]
             masker: Any = LLMAdapterMasker(base, mp)
+        elif is_causal_lm(mp):
+            masker = LLMAdapterMasker(str(mp), None)
         else:
             from piiguard.masker.token_clf import DebertaMasker
 

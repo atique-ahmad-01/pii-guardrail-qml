@@ -3,6 +3,7 @@ name = "piiguard"
 version = "0.1.0"
 description = "Two-stage PII guardrail (gate + masker): quantum-vs-classical gate benchmark and stress-tested small-LM maskers."
 readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "torch>=2.3; sys_platform != 'darwin' or platform_machine != 'x86_64'",

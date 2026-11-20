@@ -20,11 +20,11 @@ from piiguard.inference import MODES, PiiGuardrail
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument(
-        "--masker", required=True, help="DeBERTa folder (.../best) or LoRA adapter folder"
+        "--masker",
+        required=True,
+        help="masker folder, e.g. checkpoints/masker/001_deberta",
     )
-    ap.add_argument(
-        "--gates", help="folder written by scripts/export_gates.py (needed for gated modes)"
-    )
+    ap.add_argument("--gates", help="gate folder, e.g. checkpoints/gate (needed for gated modes)")
     ap.add_argument("--gate", default="logreg", choices=["logreg", "mlp", "vqc", "minilm_ft"])
     ap.add_argument("--mode", default="document", choices=MODES)
     src = ap.add_mutually_exclusive_group()

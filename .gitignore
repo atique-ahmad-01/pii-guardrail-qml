@@ -29,3 +29,8 @@ results/**/*.parquet
 
 # local session notes (not for GitHub)
 PROGRESS_NOTES.md
+
+# personal docs and local logs (not for GitHub)
+PROJECT_BRIEF.md
+*.log
+release/

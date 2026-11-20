@@ -153,12 +153,27 @@ def train_deberta(
     }
 
 
+def _tokenizer_compat(path: Path) -> dict[str, Any]:
+    """Let transformers 4.x load a tokenizer saved by 5.x.
+
+    5.x writes ``extra_special_tokens`` as a list; 4.x expects a dict and crashes. For DeBERTa
+    the list only repeats [PAD]/[CLS]/[SEP], which are already special tokens, so it is dropped.
+    """
+    import transformers
+
+    cfg = Path(path) / "tokenizer_config.json"
+    if int(transformers.__version__.split(".")[0]) >= 5 or not cfg.exists():
+        return {}
+    extra = json.loads(cfg.read_text()).get("extra_special_tokens")
+    return {"extra_special_tokens": {}} if isinstance(extra, list) else {}
+
+
 class DebertaMasker:
     """Loads a saved token classifier and predicts character spans."""
 
     def __init__(self, path: Path, max_length: int) -> None:
         self.device = get_device()
-        self.tok = AutoTokenizer.from_pretrained(str(path))
+        self.tok = AutoTokenizer.from_pretrained(str(path), **_tokenizer_compat(path))
         self.model = (
             AutoModelForTokenClassification.from_pretrained(str(path)).float().to(self.device)
         )

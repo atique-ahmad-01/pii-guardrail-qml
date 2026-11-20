@@ -321,7 +321,7 @@ def chips(spans: list[dict[str, Any]]) -> str:
 # ------------------------------------------------------------------ pages
 def hero() -> None:
     sc = clean_scores("deberta")
-    badges = ["🔒 Runs on your machine", "🧠 Trained on 28 PII types"]
+    badges = ["🔒 Your text is not stored", "🧠 Trained on 28 PII types"]
     if sc:
         badges.append(f"📊 {sc[1]:.1%} leak on the test set")
     st.markdown(
@@ -557,7 +557,7 @@ def main() -> None:
         page_how()
     st.markdown(
         f"<div class='foot'>Runs on {device_name().upper()} · "
-        "your text never leaves this app</div>",
+        "your text is processed in memory and not stored</div>",
         unsafe_allow_html=True,
     )
 

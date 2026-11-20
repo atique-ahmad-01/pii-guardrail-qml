@@ -13,14 +13,14 @@ A fast gate (classical vs simulated quantum) plus a trained masker (DeBERTa, Qwe
 ![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[Example](#-example) · [How it works](#%EF%B8%8F-how-it-works) · [Quick start](#-quick-start) · [Data](#-data) · [Results](#-results)
+**[▶ Try the live demo](https://pii-guardrail.streamlit.app/)** · [Example](#-example) · [How it works](#%EF%B8%8F-how-it-works) · [Quick start](#-quick-start) · [Data](#-data) · [Results](#-results)
 
 </div>
 
 <p align="center">
-  <img src="docs/demo.gif" alt="PII Guardrail app: pick an example, see the personal data found and the safe text" width="900" />
+  <a href="https://pii-guardrail.streamlit.app/"><img src="docs/demo.gif" alt="PII Guardrail app: pick an example, see the personal data found and the safe text" width="900" /></a>
   <br />
-  <sub>The Streamlit app running the trained DeBERTa model locally. Every result is real model output.</sub>
+  <sub><b><a href="https://pii-guardrail.streamlit.app/">▶ Try it live</a></b> · the Streamlit app running the trained DeBERTa model. Every result is real model output.</sub>
 </p>
 
 ---
@@ -54,6 +54,8 @@ flowchart LR
 | 4 | **Evaluate** | F1, leak rate and latency, with 95% confidence intervals. |
 
 ## 🚀 Quick start
+
+**No install:** open the live demo at **https://pii-guardrail.streamlit.app/** (it may take a minute to wake up if nobody has used it for a while).
 
 **Needs:** Python 3.11 or 3.12, [uv](https://docs.astral.sh/uv/), and a CUDA GPU for training (a CPU is fine for running the app). The dataset downloads automatically from Hugging Face.
 
